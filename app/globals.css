@@ -1,0 +1,166 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222.2 84% 4.9%; /* Dark background for Matrix effect */
+    --foreground: 210 40% 98%; /* Light text */
+
+    --card: 222.2 84% 4.9%; /* Base for card, will be overridden with transparency */
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 150 70% 50%; /* Greenish primary for accents */
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 217.2 32.6% 17.5%; /* Darker secondary */
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%; /* Lighter muted foreground for contrast */
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 27.5%; /* Slightly lighter border for glass effect */
+    --input: 217.2 32.6% 22.5%; /* Darker input background */
+    --ring: 150 70% 50%; /* Greenish ring */
+
+    --radius: 0.5rem;
+  }
+
+  /* Ensure dark theme variables are applied if not using ThemeProvider for everything */
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 150 70% 50%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 27.5%;
+    --input: 217.2 32.6% 22.5%;
+    --ring: 150 70% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* Ensure body takes full height for fixed background */
+    min-height: 100vh;
+  }
+}
+
+@keyframes scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%); /* Adjust based on content width if needed */
+  }
+}
+
+.animate-scroll {
+  /* Increased duration for slower, more readable scroll */
+  animation: scroll 90s linear infinite;
+}
+
+/* Custom scrollbar for a more thematic feel */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(40, 42, 54, 0.5); /* Darker, semi-transparent track */
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.5); /* Muted, semi-transparent thumb */
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.8); /* Slightly more opaque on hover */
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  .animate-scroll {
+    animation: scroll 60s linear infinite; /* Slower on mobile for better readability */
+  }
+
+  /* Ensure touch targets are at least 44px */
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+  }
+
+  /* Better text readability on mobile */
+  body {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* Make dialogs full width on very small screens */
+  [role="dialog"] {
+    margin: 0.5rem;
+    max-width: calc(100vw - 1rem);
+  }
+}
+
+/* Custom breakpoint for xs */
+@media (min-width: 475px) {
+  .xs\:flex {
+    display: flex;
+  }
+}
+
+/* Improve scrollbar on mobile */
+@media (max-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.3);
+  }
+}
+
+/* Better focus states for mobile */
+@media (max-width: 768px) {
+  button:focus,
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: 2px solid #10b981;
+    outline-offset: 2px;
+  }
+}
