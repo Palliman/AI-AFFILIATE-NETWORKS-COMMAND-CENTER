@@ -36,8 +36,8 @@ import {
 import MatrixRain from "@/components/matrix-rain"
 import LoginForm from "@/components/login-form"
 import { useAuth } from "@/components/auth-provider"
-import AffiliateFinder from "@/components/affiliate-finder" // Declare the AffiliateFinder variable
-import ArbitrageResearchLab from "@/components/arbitrage-research-lab" // Declare the ArbitrageResearchLab variable
+import AffiliateFinder from "@/components/affiliate-finder"
+import ArbitrageResearchLab from "@/components/arbitrage-research-lab"
 
 // Types (can be moved to a separate types.ts file for better organization)
 export interface NewsItem {
@@ -274,30 +274,11 @@ interface Lead {
   notes?: string
 }
 
-const initialDomains: AffiliateEntry[] = [
-  {
-    id: "site1",
-    type: "blog",
-    domain: "example-blog.com",
-    description: "My personal blog",
-    affiliatePages: ["/page1", "/page2"],
-    status: "active",
-    earnings: "$500",
-  },
-  {
-    id: "site2",
-    type: "affiliate",
-    domain: "affiliate-store.net",
-    description: "Affiliate store for gadgets",
-    affiliatePages: ["/product-a", "/product-b"],
-    status: "pending",
-  },
-]
-
 function AffiliateManager() {
   const [entries, setEntries] = useState<AffiliateEntry[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingEntry, setEditingEntry] = useState<AffiliateEntry | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const [formData, setFormData] = useState({
     type: "blog" as "blog" | "affiliate",
     domain: "",
@@ -307,26 +288,28 @@ function AffiliateManager() {
     earnings: "",
   })
 
+  // Load data from MongoDB
   useEffect(() => {
-    const savedEntries = localStorage.getItem("affiliateEntries")
-    if (savedEntries) {
-      setEntries(JSON.parse(savedEntries))
-    } else {
-      // Initialize with the specified domains if localStorage is empty
-      setEntries(initialDomains)
+    const fetchDomains = async () => {
+      try {
+        const response = await fetch("/api/domains")
+        if (response.ok) {
+          const data = await response.json()
+          setEntries(data)
+        }
+      } catch (error) {
+        console.error("Error fetching domains:", error)
+      } finally {
+        setIsLoading(false)
+      }
     }
+
+    fetchDomains()
   }, [])
 
-  useEffect(() => {
-    if (entries.length > 0 || localStorage.getItem("affiliateEntries")) {
-      // Avoid overwriting initial state if it was just set
-      localStorage.setItem("affiliateEntries", JSON.stringify(entries))
-    }
-  }, [entries])
-
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const newEntryData: AffiliateEntry = {
-      id: editingEntry?.id || formData.domain.replace(/\./g, "-") + Date.now().toString(), // More robust ID
+      id: editingEntry?.id || `domain-${Date.now()}`,
       type: formData.type,
       domain: formData.domain,
       description: formData.description,
@@ -335,10 +318,32 @@ function AffiliateManager() {
       earnings: formData.earnings,
     }
 
-    if (editingEntry) {
-      setEntries(entries.map((entry) => (entry.id === editingEntry.id ? newEntryData : entry)))
-    } else {
-      setEntries([...entries, newEntryData])
+    try {
+      if (editingEntry) {
+        // Update existing entry
+        const response = await fetch("/api/domains", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newEntryData),
+        })
+
+        if (response.ok) {
+          setEntries(entries.map((entry) => (entry.id === editingEntry.id ? newEntryData : entry)))
+        }
+      } else {
+        // Create new entry
+        const response = await fetch("/api/domains", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newEntryData),
+        })
+
+        if (response.ok) {
+          setEntries([...entries, newEntryData])
+        }
+      }
+    } catch (error) {
+      console.error("Error saving domain:", error)
     }
 
     resetForm()
@@ -370,8 +375,18 @@ function AffiliateManager() {
     setIsDialogOpen(true)
   }
 
-  const handleDelete = (id: string) => {
-    setEntries(entries.filter((entry) => entry.id !== id))
+  const handleDelete = async (id: string) => {
+    try {
+      const response = await fetch(`/api/domains?id=${id}`, {
+        method: "DELETE",
+      })
+
+      if (response.ok) {
+        setEntries(entries.filter((entry) => entry.id !== id))
+      }
+    } catch (error) {
+      console.error("Error deleting domain:", error)
+    }
   }
 
   const getStatusColor = (status: string) => {
@@ -385,6 +400,20 @@ function AffiliateManager() {
       default:
         return "bg-gray-500/70 border border-gray-400/50"
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-slate-100">Domain & Affiliate Management</h2>
+        </div>
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-400 mx-auto"></div>
+          <p className="text-slate-400 mt-2">Loading domains...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -627,6 +656,7 @@ function LeadManager() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingLead, setEditingLead] = useState<Lead | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const [formData, setFormData] = useState({
     name: "",
     number: "",
@@ -637,20 +667,26 @@ function LeadManager() {
     notes: "",
   })
 
+  // Load data from MongoDB
   useEffect(() => {
-    const savedLeads = localStorage.getItem("leads")
-    if (savedLeads) {
-      setLeads(JSON.parse(savedLeads))
+    const fetchLeads = async () => {
+      try {
+        const response = await fetch("/api/leads")
+        if (response.ok) {
+          const data = await response.json()
+          setLeads(data)
+        }
+      } catch (error) {
+        console.error("Error fetching leads:", error)
+      } finally {
+        setIsLoading(false)
+      }
     }
+
+    fetchLeads()
   }, [])
 
-  useEffect(() => {
-    if (leads.length > 0 || localStorage.getItem("leads")) {
-      localStorage.setItem("leads", JSON.stringify(leads))
-    }
-  }, [leads])
-
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!formData.name.trim() || !formData.site.trim()) {
       return // Basic validation - name and site are required
     }
@@ -667,10 +703,32 @@ function LeadManager() {
       dateAdded: editingLead?.dateAdded || new Date().toLocaleDateString(),
     }
 
-    if (editingLead) {
-      setLeads(leads.map((lead) => (lead.id === editingLead.id ? newLead : lead)))
-    } else {
-      setLeads([...leads, newLead])
+    try {
+      if (editingLead) {
+        // Update existing lead
+        const response = await fetch("/api/leads", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newLead),
+        })
+
+        if (response.ok) {
+          setLeads(leads.map((lead) => (lead.id === editingLead.id ? newLead : lead)))
+        }
+      } else {
+        // Create new lead
+        const response = await fetch("/api/leads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newLead),
+        })
+
+        if (response.ok) {
+          setLeads([...leads, newLead])
+        }
+      }
+    } catch (error) {
+      console.error("Error saving lead:", error)
     }
 
     resetForm()
@@ -704,8 +762,35 @@ function LeadManager() {
     setIsDialogOpen(true)
   }
 
-  const handleDelete = (id: string) => {
-    setLeads(leads.filter((lead) => lead.id !== id))
+  const handleDelete = async (id: string) => {
+    try {
+      const response = await fetch(`/api/leads?id=${id}`, {
+        method: "DELETE",
+      })
+
+      if (response.ok) {
+        setLeads(leads.filter((lead) => lead.id !== id))
+      }
+    } catch (error) {
+      console.error("Error deleting lead:", error)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-100">Lead Management</h2>
+            <p className="text-slate-400 text-sm mt-1">Track and manage your potential clients</p>
+          </div>
+        </div>
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-400 mx-auto"></div>
+          <p className="text-slate-400 mt-2">Loading leads...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -1159,8 +1244,8 @@ function CommandCenter() {
             <TabsContent value="overview" className="space-y-6">
               <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 sm:gap-6">
                 {[
-                  { title: "Total Domains", value: "2", change: "Initial count", icon: Globe },
-                  { title: "Active Affiliates", value: "2", change: "Initial count", icon: DollarSign },
+                  { title: "Total Domains", value: "0", change: "Connected to MongoDB", icon: Globe },
+                  { title: "Active Affiliates", value: "0", change: "Connected to MongoDB", icon: DollarSign },
                   { title: "Monthly Revenue", value: "$0", change: "Awaiting data", icon: TrendingUp },
                   { title: "Conversion Rate", value: "0%", change: "Awaiting data", icon: Brain },
                 ].map((item) => (
