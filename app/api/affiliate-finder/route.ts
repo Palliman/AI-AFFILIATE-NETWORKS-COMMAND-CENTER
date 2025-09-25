@@ -1,6 +1,3 @@
-import { openai } from "@ai-sdk/openai"
-import { generateText, tool } from "ai"
-import { z } from "zod"
 import { NextResponse } from "next/server"
 
 export async function POST(req: Request) {
@@ -34,15 +31,28 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Prompt is required." }, { status: 400 })
     }
 
-    // Step 1: Use OpenAI to generate an effective search query
+    // Step 1: Generate search query using OpenAI API directly
     console.log("Affiliate Finder API: Step 1 - Generating search query with OpenAI...")
-    const searchQueryResult = await generateText({
-      model: openai("gpt-4o", { apiKey: openaiKey }),
-      system: `You are an expert at creating effective search queries for finding affiliate programs. 
+
+    const searchQueryResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openaiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `You are an expert at creating effective search queries for finding affiliate programs. 
 Your goal is to create search terms that will find real affiliate programs, partner programs, or referral programs related to the user's input.
 Focus on terms that would lead to actual sign-up pages or program descriptions.
 Return only the search query, nothing else.`,
-      prompt: `Create an effective Google search query to find affiliate programs related to: "${userPrompt}"
+          },
+          {
+            role: "user",
+            content: `Create an effective Google search query to find affiliate programs related to: "${userPrompt}"
 Examples of good search queries:
 - "pet CBD affiliate program"
 - "eco-friendly products partner program" 
@@ -50,9 +60,20 @@ Examples of good search queries:
 - "health supplements referral program"
 
 Create a similar search query for: "${userPrompt}"`,
+          },
+        ],
+        max_tokens: 100,
+        temperature: 0.7,
+      }),
     })
 
-    const searchQuery = searchQueryResult.text.trim()
+    if (!searchQueryResponse.ok) {
+      throw new Error(`OpenAI API error: ${searchQueryResponse.status}`)
+    }
+
+    const searchQueryData = await searchQueryResponse.json()
+    const searchQuery = searchQueryData.choices[0]?.message?.content?.trim() || userPrompt
+
     console.log("Affiliate Finder API: Generated search query:", searchQuery)
 
     // Step 2: Use Google Custom Search API to get real results
@@ -89,79 +110,90 @@ Snippet: ${item.snippet}
         )
         .join("\n") || "No search results found."
 
-    const analysisResult = await generateText({
-      model: openai("gpt-4o", { apiKey: openaiKey }),
-      system: `You are an expert affiliate marketing researcher. Analyze the provided Google search results and extract real affiliate program opportunities.
+    const analysisResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openaiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `You are an expert affiliate marketing researcher. Analyze the provided Google search results and extract real affiliate program opportunities.
 Look for:
 - Actual affiliate programs, partner programs, or referral programs
 - Commission structures mentioned in the snippets
 - Sign-up URLs or program pages
 - Indicators of competition level based on the search results
 
-Focus on real, actionable opportunities that the user can actually sign up for.`,
-      prompt: `Analyze these Google search results for "${userPrompt}" and extract affiliate program opportunities:
+Focus on real, actionable opportunities that the user can actually sign up for.
+Return your response as a JSON array of opportunities with this structure:
+[
+  {
+    "id": "unique-id",
+    "programName": "Program Name",
+    "category": "Category",
+    "commission": "Commission info if available",
+    "competition": "Low|Medium|High|Unknown",
+    "url": "URL from search results",
+    "notes": "Brief notes about the opportunity"
+  }
+]`,
+          },
+          {
+            role: "user",
+            content: `Analyze these Google search results for "${userPrompt}" and extract affiliate program opportunities:
 
 ${searchResultsText}
 
 Based on these real search results, identify affiliate programs the user could join. For each opportunity, assess the competition level based on how many similar programs appeared in the results and the specificity of the programs found.`,
-      tools: {
-        extractAffiliateOpportunities: tool({
-          description: "Extract affiliate program opportunities from search results.",
-          parameters: z.object({
-            opportunities: z.array(
-              z.object({
-                id: z.string().describe("A unique ID for the opportunity"),
-                programName: z.string().describe("The name of the affiliate program or company"),
-                category: z.string().describe("The category (e.g., Health, Software, E-commerce)"),
-                commission: z.string().optional().describe("Commission structure if mentioned in search results"),
-                competition: z
-                  .enum(["Low", "Medium", "High", "Unknown"])
-                  .describe("Estimated competition level based on search results"),
-                url: z.string().describe("The actual URL from search results or the company domain"),
-                notes: z
-                  .string()
-                  .describe("Brief notes about the opportunity, why it might be good, or how to find more info"),
-              }),
-            ),
-          }),
-          execute: async ({ opportunities }) => {
-            console.log("Affiliate Finder API: Extracted", opportunities.length, "opportunities from search results")
-            return opportunities
           },
-        }),
-      },
+        ],
+        max_tokens: 1500,
+        temperature: 0.3,
+      }),
     })
 
-    // Wait for the tool to be called and get the results
-    const toolCalls = await analysisResult.toolCalls
-    if (toolCalls && toolCalls.length > 0) {
-      const opportunities = toolCalls[0].result
-      console.log("Affiliate Finder API: Successfully extracted opportunities:", opportunities)
-      return NextResponse.json(opportunities)
-    } else {
-      console.log("Affiliate Finder API: No opportunities extracted from search results")
-      return NextResponse.json([])
+    if (!analysisResponse.ok) {
+      throw new Error(`OpenAI analysis API error: ${analysisResponse.status}`)
     }
+
+    const analysisData = await analysisResponse.json()
+    const analysisText = analysisData.choices[0]?.message?.content?.trim() || "[]"
+
+    // Try to parse JSON response
+    let opportunities = []
+    try {
+      opportunities = JSON.parse(analysisText)
+    } catch (parseError) {
+      console.error("Failed to parse OpenAI response as JSON:", parseError)
+      // Fallback: create a simple opportunity from the search results
+      opportunities = [
+        {
+          id: `opp-${Date.now()}`,
+          programName: `${userPrompt} Affiliate Programs`,
+          category: "General",
+          commission: "Unknown",
+          competition: "Medium",
+          url: googleResults.items?.[0]?.link || `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`,
+          notes: "Multiple opportunities found in search results. Click to explore further.",
+        },
+      ]
+    }
+
+    console.log("Affiliate Finder API: Successfully extracted opportunities:", opportunities)
+    return NextResponse.json(opportunities)
   } catch (error: any) {
     console.error("Affiliate Finder API: Error in workflow:", error)
 
     let errorMessage = "An internal error occurred during affiliate opportunity search."
 
-    // Handle specific API errors
-    if (error.name === "AI_APICallError" || (error.cause && error.cause.name === "AI_APICallError")) {
-      const apiCallError = error.name === "AI_APICallError" ? error : error.cause
-      console.error("Affiliate Finder API: OpenAI API Error:", {
-        message: apiCallError.message,
-        statusCode: apiCallError.statusCode,
-      })
-
-      if (apiCallError.statusCode === 401) {
-        errorMessage = "OpenAI API authentication failed. Please check your API key."
-      } else if (apiCallError.statusCode === 429) {
-        errorMessage = "OpenAI API rate limit exceeded. Please try again later."
-      } else {
-        errorMessage = `OpenAI API Error: ${apiCallError.message || "Unknown error"}`
-      }
+    if (error.message?.includes("OpenAI")) {
+      errorMessage = "OpenAI API error. Please check your API key and try again."
+    } else if (error.message?.includes("Google")) {
+      errorMessage = "Google Search API error. Please check your API configuration."
     } else if (error.message) {
       errorMessage = error.message
     }

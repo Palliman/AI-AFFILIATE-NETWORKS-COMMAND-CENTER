@@ -30,34 +30,3 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: "Failed to get job status" }, { status: 500 })
   }
 }
-
-// Helper function to create and track jobs
-export function createJob(type: Job["type"], title: string): string {
-  const jobId = `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-
-  const job: Job = {
-    id: jobId,
-    type,
-    status: "queued",
-    progress: 0,
-    title,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }
-
-  jobs.set(jobId, job)
-  return jobId
-}
-
-// Helper function to update job status
-export function updateJob(jobId: string, updates: Partial<Job>) {
-  const job = jobs.get(jobId)
-  if (job) {
-    const updatedJob = {
-      ...job,
-      ...updates,
-      updatedAt: new Date().toISOString(),
-    }
-    jobs.set(jobId, updatedJob)
-  }
-}
