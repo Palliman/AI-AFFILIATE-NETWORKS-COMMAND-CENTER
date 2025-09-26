@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
+import { Input } from "@/components/ui/input"
 import {
   Search,
   Target,
@@ -23,6 +24,7 @@ import {
   Zap,
   BarChart3,
   Lightbulb,
+  Trash2,
 } from "lucide-react"
 
 // Types
@@ -94,7 +96,12 @@ const mockNiches = [
 ]
 
 // Real API integration
-const realResearchAPI = async (country: string, niche: string, keywords: string[]): Promise<ResearchResult> => {
+const realResearchAPI = async (
+  country: string,
+  niche: string,
+  keywords: string[],
+  apiKeys: any,
+): Promise<ResearchResult> => {
   const response = await fetch("/api/research/run", {
     method: "POST",
     headers: {
@@ -104,6 +111,7 @@ const realResearchAPI = async (country: string, niche: string, keywords: string[
       country,
       niche,
       keywords,
+      apiKeys,
     }),
   })
 
@@ -125,6 +133,15 @@ const ArbitrageResearchLab: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([])
   const [activeResult, setActiveResult] = useState<ResearchResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [apiKeys, setApiKeys] = useState({
+    serpapi: "",
+    mozAccessId: "",
+    mozSecretKey: "",
+  })
+  const [useMockData, setUseMockData] = useState({
+    serpapi: true,
+    moz: true,
+  })
 
   // Load saved data
   useEffect(() => {
@@ -155,8 +172,8 @@ const ArbitrageResearchLab: React.FC = () => {
       .filter((k) => k.length > 0)
 
     try {
-      console.log(`🚀 Starting real research for ${selectedNiche} in ${selectedCountry}`)
-      const result = await realResearchAPI(selectedCountry, selectedNiche, keywords)
+      console.log(`🚀 Starting research for ${selectedNiche} in ${selectedCountry}`)
+      const result = await realResearchAPI(selectedCountry, selectedNiche, keywords, apiKeys)
       setResults((prev) => [result, ...prev])
       setActiveResult(result)
       console.log(`✅ Research completed with score: ${result.totalScore.toFixed(1)}`)
@@ -323,19 +340,74 @@ const ArbitrageResearchLab: React.FC = () => {
                 )}
               </Button>
 
-              {/* API Status */}
-              <div className="text-xs text-slate-400 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span>SerpAPI:</span>
-                  <Badge variant="outline" className="text-xs bg-green-500/20 text-green-300 border-green-400/50">
-                    Connected
-                  </Badge>
+              <Button
+                onClick={() => {
+                  setResults([])
+                  setActiveResult(null)
+                  setError(null)
+                  localStorage.removeItem("arbitrageResults")
+                }}
+                disabled={results.length === 0}
+                variant="outline"
+                className="w-full text-slate-300 border-slate-600 hover:bg-slate-700/50 hover:text-slate-100 bg-transparent"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Clear Previous Research
+              </Button>
+
+              {/* API Configuration */}
+              <div className="space-y-3 text-xs text-slate-400">
+                <div className="font-medium text-slate-300">API Configuration</div>
+
+                <div className="space-y-2">
+                  <Label className="text-slate-300 text-xs">SerpAPI Key</Label>
+                  <Input
+                    type="password"
+                    value={apiKeys.serpapi}
+                    onChange={(e) => setApiKeys((prev) => ({ ...prev, serpapi: e.target.value }))}
+                    placeholder="Enter SerpAPI key"
+                    className="bg-slate-700/60 border-slate-600 text-slate-100 text-xs h-8"
+                  />
+                  <div className="flex items-center justify-between">
+                    <span>SerpAPI:</span>
+                    <Badge
+                      variant="outline"
+                      className={`text-xs ${useMockData.serpapi ? "bg-orange-500/20 text-orange-300 border-orange-400/50" : "bg-green-500/20 text-green-300 border-green-400/50"}`}
+                    >
+                      {useMockData.serpapi ? "Mock Data" : "Live API"}
+                    </Badge>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>Moz API:</span>
-                  <Badge variant="outline" className="text-xs bg-green-500/20 text-green-300 border-green-400/50">
-                    Connected
-                  </Badge>
+
+                <div className="space-y-2">
+                  <Label className="text-slate-300 text-xs">Moz Access ID</Label>
+                  <Input
+                    type="text"
+                    value={apiKeys.mozAccessId}
+                    onChange={(e) => setApiKeys((prev) => ({ ...prev, mozAccessId: e.target.value }))}
+                    placeholder="Enter Moz Access ID"
+                    className="bg-slate-700/60 border-slate-600 text-slate-100 text-xs h-8"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-slate-300 text-xs">Moz Secret Key</Label>
+                  <Input
+                    type="password"
+                    value={apiKeys.mozSecretKey}
+                    onChange={(e) => setApiKeys((prev) => ({ ...prev, mozSecretKey: e.target.value }))}
+                    placeholder="Enter Moz Secret Key"
+                    className="bg-slate-700/60 border-slate-600 text-slate-100 text-xs h-8"
+                  />
+                  <div className="flex items-center justify-between">
+                    <span>Moz API:</span>
+                    <Badge
+                      variant="outline"
+                      className={`text-xs ${useMockData.moz ? "bg-orange-500/20 text-orange-300 border-orange-400/50" : "bg-green-500/20 text-green-300 border-green-400/50"}`}
+                    >
+                      {useMockData.moz ? "Mock Data" : "Live API"}
+                    </Badge>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -351,6 +423,14 @@ const ArbitrageResearchLab: React.FC = () => {
                   <CardTitle className="text-slate-100 flex items-center gap-2">
                     <BarChart3 className="w-5 h-5 text-blue-400" />
                     Live Research Results
+                    {(useMockData.serpapi || useMockData.moz) && (
+                      <Badge
+                        variant="outline"
+                        className="bg-orange-500/20 text-orange-300 border-orange-400/50 text-xs"
+                      >
+                        Contains Mock Data
+                      </Badge>
+                    )}
                   </CardTitle>
                   <Badge className={`${getScoreBg(activeResult.totalScore)} text-white`}>
                     Score: {activeResult.totalScore.toFixed(1)}

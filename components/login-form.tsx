@@ -267,9 +267,9 @@ export default function CommandCenterLogin() {
     // Simulate loading delay
     await new Promise((resolve) => setTimeout(resolve, 1200))
 
-    const success = login(username, password)
+    const success = await login(username, password)
     if (!success) {
-      setError("Invalid credentials. Check the hint if you're stuck!")
+      setError("Invalid credentials. Try: Palliman, Signull, or 1llw1ll")
       setPassword("")
       setIsLoading(false)
       setShake(true)
@@ -331,7 +331,7 @@ export default function CommandCenterLogin() {
                 className="bg-[#3B82F6]/20 text-[#3B82F6] border-[#3B82F6]/30 px-3 py-1 text-xs font-medium tracking-tight animate-pulse"
                 variant="outline"
               >
-                <Shield className="w-3 h-3 mr-2" />🔒 Secure Login Required
+                <Shield className="w-3 h-3 mr-2" />🔒 MongoDB Authentication
               </Badge>
             </div>
 
@@ -449,9 +449,10 @@ export default function CommandCenterLogin() {
               </Button>
             </form>
 
-            {/* Hint */}
+            {/* Available Users Hint */}
             <div className="mt-6 text-center">
-              <p className="text-[#CBD5E1]/60 text-xs tracking-tight">Not ironman</p>
+              <p className="text-[#CBD5E1]/60 text-xs tracking-tight">Available users: Palliman, Signull, 1llw1ll</p>
+              <p className="text-[#CBD5E1]/40 text-xs tracking-tight mt-1">Password: Megaman$ (for all users)</p>
             </div>
 
             {/* Status Ticker */}
@@ -459,15 +460,14 @@ export default function CommandCenterLogin() {
               <div className="flex items-center justify-center space-x-4 text-xs text-[#CBD5E1]/80 font-mono">
                 <span className="flex items-center">
                   <Clock className="w-3 h-3 mr-1" />
-                  Node mesh synced
+                  MongoDB synced
                 </span>
                 <span className="hidden sm:flex items-center">
-                  <Globe className="w-3 h-3 mr-1" />
-                  42 regions online
+                  <Globe className="w-3 h-3 mr-1" />3 users active
                 </span>
                 <span className="flex items-center">
                   <Activity className="w-3 h-3 mr-1" />
-                  318 active crawlers
+                  JWT secured
                 </span>
               </div>
             </div>
