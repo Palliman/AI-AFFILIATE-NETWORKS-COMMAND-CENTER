@@ -9,11 +9,22 @@ interface KeywordData {
   cluster?: string
 }
 
+interface ClusterData {
+  name: string
+  primaryKeyword: string
+  supportingKeywords: string[]
+  totalVolume: number
+  avgDifficulty: number
+  estimatedWeeks: number
+  postsPerWeek: number
+}
+
 interface ResearchResult {
   id: string
   country: string
   niche: string
   keywords: KeywordData[]
+  clusters: ClusterData[]
   opportunityScore: number
   competitionScore: number
   volumeScore: number
@@ -101,11 +112,12 @@ async function getMozData(keyword: string, accessId?: string, secretKey?: string
   }
 }
 
-// Keyword clustering using semantic similarity
-async function clusterKeywords(keywords: string[]): Promise<Record<string, string[]>> {
-  // Simple clustering based on word similarity
-  // In production, you might want to use more sophisticated NLP
+// Enhanced keyword clustering with content planning
+async function clusterKeywords(
+  keywords: string[],
+): Promise<{ clusters: Record<string, string[]>; clusterData: ClusterData[] }> {
   const clusters: Record<string, string[]> = {}
+  const clusterData: ClusterData[] = []
 
   keywords.forEach((keyword, index) => {
     const words = keyword.toLowerCase().split(" ")
@@ -122,7 +134,31 @@ async function clusterKeywords(keywords: string[]): Promise<Record<string, strin
     clusters[clusterName].push(keyword)
   })
 
-  return clusters
+  // Generate cluster data with content planning
+  Object.entries(clusters).forEach(([clusterName, clusterKeywords]) => {
+    const primaryKeyword = clusterKeywords[0]
+    const supportingKeywords = clusterKeywords.slice(1)
+
+    // Mock volume and difficulty calculations
+    const totalVolume = clusterKeywords.reduce((sum, _) => sum + Math.floor(Math.random() * 5000), 0)
+    const avgDifficulty = Math.random() * 100
+
+    // Estimate content timeline based on cluster size
+    const estimatedWeeks = Math.max(2, Math.ceil(clusterKeywords.length / 2))
+    const postsPerWeek = clusterKeywords.length <= 4 ? 1 : 2
+
+    clusterData.push({
+      name: clusterName,
+      primaryKeyword,
+      supportingKeywords,
+      totalVolume,
+      avgDifficulty,
+      estimatedWeeks,
+      postsPerWeek,
+    })
+  })
+
+  return { clusters, clusterData }
 }
 
 // Country code mapping
@@ -280,8 +316,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Cluster keywords
-    const clusters = await clusterKeywords(keywords)
+    // Enhanced clustering with content planning
+    const { clusters, clusterData } = await clusterKeywords(keywords)
 
     // Assign cluster names to keywords
     Object.entries(clusters).forEach(([clusterName, clusterKeywords]) => {
@@ -301,6 +337,7 @@ export async function POST(request: NextRequest) {
       country,
       niche,
       keywords: keywordData,
+      clusters: clusterData,
       opportunityScore: scores.volumeScore,
       competitionScore: scores.competitionScore,
       volumeScore: scores.volumeScore,

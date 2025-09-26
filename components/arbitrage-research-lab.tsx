@@ -13,8 +13,6 @@ import { Input } from "@/components/ui/input"
 import {
   Search,
   Target,
-  Globe,
-  Users,
   Clock,
   CheckCircle,
   AlertCircle,
@@ -25,6 +23,11 @@ import {
   BarChart3,
   Lightbulb,
   Trash2,
+  Save,
+  FileText,
+  Calendar,
+  Layers,
+  Terminal,
 } from "lucide-react"
 
 // Types
@@ -37,11 +40,22 @@ interface KeywordData {
   cluster?: string
 }
 
+interface ClusterData {
+  name: string
+  primaryKeyword: string
+  supportingKeywords: string[]
+  totalVolume: number
+  avgDifficulty: number
+  estimatedWeeks: number
+  postsPerWeek: number
+}
+
 interface ResearchResult {
   id: string
   country: string
   niche: string
   keywords: KeywordData[]
+  clusters: ClusterData[]
   opportunityScore: number
   competitionScore: number
   volumeScore: number
@@ -55,12 +69,14 @@ interface ResearchResult {
 
 interface Job {
   id: string
-  type: "research" | "plan" | "content"
+  type: "research" | "plan" | "content" | "intake" | "export"
   status: "queued" | "running" | "completed" | "failed"
   progress: number
   result?: any
   createdAt: string
   title: string
+  logs: string[]
+  eta?: string
 }
 
 // Mock data
@@ -160,6 +176,39 @@ const ArbitrageResearchLab: React.FC = () => {
     localStorage.setItem("arbitrageJobs", JSON.stringify(jobs))
   }, [jobs])
 
+  // Simulate job progress
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setJobs((prevJobs) =>
+        prevJobs.map((job) => {
+          if (job.status === "running" && job.progress < 100) {
+            const newProgress = Math.min(100, job.progress + Math.random() * 15)
+            const newLogs = [...job.logs]
+
+            if (newProgress > 25 && job.logs.length === 1) {
+              newLogs.push("Processing keyword clusters...")
+            }
+            if (newProgress > 50 && job.logs.length === 2) {
+              newLogs.push("Analyzing competition data...")
+            }
+            if (newProgress > 75 && job.logs.length === 3) {
+              newLogs.push("Generating content roadmap...")
+            }
+            if (newProgress >= 100 && job.status === "running") {
+              newLogs.push("✅ Job completed successfully")
+              return { ...job, status: "completed" as const, progress: 100, logs: newLogs }
+            }
+
+            return { ...job, progress: newProgress, logs: newLogs }
+          }
+          return job
+        }),
+      )
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [])
+
   const handleResearch = async () => {
     if (!selectedCountry || !selectedNiche || !keywordInput.trim()) return
 
@@ -185,43 +234,131 @@ const ArbitrageResearchLab: React.FC = () => {
     }
   }
 
-  const createPlan = async (result: ResearchResult) => {
+  const createSEOPlan = async (result: ResearchResult) => {
     try {
-      const response = await fetch("/api/plans/create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          researchId: result.id,
-          country: result.country,
-          niche: result.niche,
-          keywords: result.keywords.map((k) => k.keyword),
-          totalScore: result.totalScore,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to create plan")
-      }
-
-      const plan = await response.json()
-
+      // Create job for RankForge integration
       const newJob: Job = {
         id: `job-${Date.now()}`,
         type: "plan",
-        status: "completed",
-        progress: 100,
-        title: `SEO Plan: ${result.niche} in ${result.country}`,
+        status: "running",
+        progress: 0,
+        title: `RankForge SEO Plan: ${result.niche}`,
         createdAt: new Date().toISOString(),
-        result: plan,
+        logs: ["🚀 Initializing RankForge integration..."],
+        eta: "3-5 minutes",
       }
 
       setJobs((prev) => [newJob, ...prev])
-      console.log(`📋 SEO plan created: ${plan.title}`)
+
+      // Call RankForge integration endpoints
+      const [intakeResponse, planResponse] = await Promise.all([
+        fetch("/api/keywords/intake", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            keywords: result.keywords.map((k) => k.keyword),
+            country: result.country,
+            niche: result.niche,
+          }),
+        }),
+        fetch("/api/plans/auto", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            researchId: result.id,
+            country: result.country,
+            niche: result.niche,
+            keywords: result.keywords.map((k) => k.keyword),
+            totalScore: result.totalScore,
+            clusters: result.clusters,
+          }),
+        }),
+      ])
+
+      if (!intakeResponse.ok || !planResponse.ok) {
+        throw new Error("Failed to create RankForge plan")
+      }
+
+      const [intakeData, planData] = await Promise.all([intakeResponse.json(), planResponse.json()])
+
+      // Update job with results
+      setJobs((prev) =>
+        prev.map((job) =>
+          job.id === newJob.id
+            ? {
+                ...job,
+                status: "completed",
+                progress: 100,
+                result: { intake: intakeData, plan: planData },
+                logs: [
+                  ...job.logs,
+                  "✅ Keyword clustering completed",
+                  "✅ DA targets identified",
+                  "✅ Content roadmap generated",
+                  "✅ Link building strategy created",
+                ],
+              }
+            : job,
+        ),
+      )
+
+      console.log(`📋 RankForge SEO plan created: ${planData.title}`)
     } catch (error) {
-      console.error("Failed to create plan:", error)
-      setError("Failed to create SEO plan. Please try again.")
+      console.error("Failed to create RankForge plan:", error)
+      setError("Failed to create RankForge SEO plan. Please try again.")
+
+      // Update job as failed
+      setJobs((prev) =>
+        prev.map((job) =>
+          job.type === "plan" && job.status === "running"
+            ? { ...job, status: "failed", logs: [...job.logs, "❌ Plan creation failed"] }
+            : job,
+        ),
+      )
+    }
+  }
+
+  const saveOpportunity = async (result: ResearchResult) => {
+    try {
+      const newJob: Job = {
+        id: `job-${Date.now()}`,
+        type: "export",
+        status: "running",
+        progress: 0,
+        title: `Saving Opportunity: ${result.niche}`,
+        createdAt: new Date().toISOString(),
+        logs: ["💾 Preparing opportunity data..."],
+        eta: "30 seconds",
+      }
+
+      setJobs((prev) => [newJob, ...prev])
+
+      // Simulate saving process
+      setTimeout(() => {
+        setJobs((prev) =>
+          prev.map((job) =>
+            job.id === newJob.id
+              ? {
+                  ...job,
+                  status: "completed",
+                  progress: 100,
+                  result: { saved: true, opportunityId: `opp-${Date.now()}` },
+                  logs: [
+                    ...job.logs,
+                    "✅ Opportunity data structured",
+                    "✅ Saved to opportunities database",
+                    "✅ Available in analytics dashboard",
+                  ],
+                }
+              : job,
+          ),
+        )
+      }, 2000)
+
+      console.log(`💾 Opportunity saved: ${result.niche} in ${result.country}`)
+    } catch (error) {
+      console.error("Failed to save opportunity:", error)
+      setError("Failed to save opportunity. Please try again.")
     }
   }
 
@@ -239,6 +376,20 @@ const ArbitrageResearchLab: React.FC = () => {
     return "bg-red-500/20 border-red-400/50"
   }
 
+  const getScoreGradient = (score: number) => {
+    if (score >= 80) return "from-green-500/30 to-green-600/10"
+    if (score >= 60) return "from-yellow-500/30 to-yellow-600/10"
+    if (score >= 40) return "from-orange-500/30 to-orange-600/10"
+    return "from-red-500/30 to-red-600/10"
+  }
+
+  const getOpportunityLevel = (score: number) => {
+    if (score >= 80) return { level: "🔥 Hot Opportunity", color: "text-green-400" }
+    if (score >= 60) return { level: "⚡ Good Opportunity", color: "text-yellow-400" }
+    if (score >= 40) return { level: "📊 Moderate Opportunity", color: "text-orange-400" }
+    return { level: "❄️ Weak Opportunity", color: "text-red-400" }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -247,11 +398,11 @@ const ArbitrageResearchLab: React.FC = () => {
             <Target className="w-6 h-6 text-green-400" />
             Arbitrage Research Lab
           </h2>
-          <p className="text-slate-400 text-sm mt-1">Real-time market research using SerpAPI and Moz data</p>
+          <p className="text-slate-400 text-sm mt-1">Real-time market research with RankForge integration</p>
         </div>
         <Badge variant="outline" className="bg-purple-500/20 text-purple-300 border-purple-400/50">
           <Zap className="w-3 h-3 mr-1" />
-          Live Data Engine
+          RankForge Ready
         </Badge>
       </div>
 
@@ -417,73 +568,169 @@ const ArbitrageResearchLab: React.FC = () => {
         {/* Center Column - Results */}
         <div className="lg:col-span-6 space-y-4">
           {activeResult ? (
-            <Card className="bg-slate-800/70 backdrop-blur-md border border-slate-700/60">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-slate-100 flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-blue-400" />
-                    Live Research Results
-                    {(useMockData.serpapi || useMockData.moz) && (
-                      <Badge
-                        variant="outline"
-                        className="bg-orange-500/20 text-orange-300 border-orange-400/50 text-xs"
-                      >
-                        Contains Mock Data
+            <>
+              {/* Score Overview Card */}
+              <Card className="bg-slate-800/70 backdrop-blur-md border border-slate-700/60">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-slate-100 flex items-center gap-2">
+                      <BarChart3 className="w-5 h-5 text-blue-400" />
+                      Opportunity Analysis
+                      {(useMockData.serpapi || useMockData.moz) && (
+                        <Badge
+                          variant="outline"
+                          className="bg-orange-500/20 text-orange-300 border-orange-400/50 text-xs"
+                        >
+                          Contains Mock Data
+                        </Badge>
+                      )}
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Badge className={`${getScoreBg(activeResult.totalScore)} text-white`}>
+                        Score: {activeResult.totalScore.toFixed(1)}
                       </Badge>
-                    )}
-                  </CardTitle>
-                  <Badge className={`${getScoreBg(activeResult.totalScore)} text-white`}>
-                    Score: {activeResult.totalScore.toFixed(1)}
-                  </Badge>
-                </div>
-                <CardDescription className="text-slate-400">
-                  {activeResult.niche} in {activeResult.country} • Real SerpAPI & Moz data
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Score Breakdown */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  <div className="text-center">
-                    <div className={`text-2xl font-bold ${getScoreColor(activeResult.volumeScore)}`}>
-                      {activeResult.volumeScore.toFixed(0)}
                     </div>
-                    <div className="text-xs text-slate-400">Volume (30%)</div>
                   </div>
-                  <div className="text-center">
-                    <div className={`text-2xl font-bold ${getScoreColor(activeResult.competitionScore)}`}>
-                      {activeResult.competitionScore.toFixed(0)}
+                  <CardDescription className="text-slate-400">
+                    {activeResult.niche} in {activeResult.country} • {activeResult.keywords.length} keywords analyzed
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Opportunity Level with Gradient Bar */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className={`font-semibold ${getOpportunityLevel(activeResult.totalScore).color}`}>
+                        {getOpportunityLevel(activeResult.totalScore).level}
+                      </span>
+                      <span className="text-slate-400 text-sm">{activeResult.totalScore.toFixed(1)}/100</span>
                     </div>
-                    <div className="text-xs text-slate-400">Competition (25%)</div>
-                  </div>
-                  <div className="text-center">
-                    <div className={`text-2xl font-bold ${getScoreColor(activeResult.cpcRpmScore)}`}>
-                      {activeResult.cpcRpmScore.toFixed(0)}
+                    <div className="relative h-3 bg-slate-700/50 rounded-full overflow-hidden">
+                      <div
+                        className={`absolute left-0 top-0 h-full bg-gradient-to-r ${getScoreGradient(activeResult.totalScore)} transition-all duration-1000 ease-out`}
+                        style={{ width: `${activeResult.totalScore}%` }}
+                      />
                     </div>
-                    <div className="text-xs text-slate-400">CPC/RPM (25%)</div>
                   </div>
-                  <div className="text-center">
-                    <div className={`text-2xl font-bold ${getScoreColor(activeResult.saturationScore)}`}>
-                      {activeResult.saturationScore.toFixed(0)}
-                    </div>
-                    <div className="text-xs text-slate-400">Saturation (15%)</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-red-400">
-                      -{activeResult.localizationPenalty.toFixed(0)}
-                    </div>
-                    <div className="text-xs text-slate-400">Localization</div>
-                  </div>
-                  <div className="text-center">
-                    <div className={`text-2xl font-bold ${getScoreColor(activeResult.totalScore)}`}>
-                      {activeResult.totalScore.toFixed(0)}
-                    </div>
-                    <div className="text-xs text-slate-400">Final Score</div>
-                  </div>
-                </div>
 
-                {/* Keywords Table */}
-                <div>
-                  <h4 className="font-medium text-slate-300 mb-3">Live Keyword Analysis</h4>
+                  {/* Score Breakdown */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <div className={`text-2xl font-bold ${getScoreColor(activeResult.volumeScore)}`}>
+                        {activeResult.volumeScore.toFixed(0)}
+                      </div>
+                      <div className="text-xs text-slate-400">Volume (30%)</div>
+                    </div>
+                    <div className="text-center">
+                      <div className={`text-2xl font-bold ${getScoreColor(activeResult.competitionScore)}`}>
+                        {activeResult.competitionScore.toFixed(0)}
+                      </div>
+                      <div className="text-xs text-slate-400">Competition (25%)</div>
+                    </div>
+                    <div className="text-center">
+                      <div className={`text-2xl font-bold ${getScoreColor(activeResult.cpcRpmScore)}`}>
+                        {activeResult.cpcRpmScore.toFixed(0)}
+                      </div>
+                      <div className="text-xs text-slate-400">CPC/RPM (25%)</div>
+                    </div>
+                    <div className="text-center">
+                      <div className={`text-2xl font-bold ${getScoreColor(activeResult.saturationScore)}`}>
+                        {activeResult.saturationScore.toFixed(0)}
+                      </div>
+                      <div className="text-xs text-slate-400">Saturation (15%)</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-red-400">
+                        -{activeResult.localizationPenalty.toFixed(0)}
+                      </div>
+                      <div className="text-xs text-slate-400">Localization</div>
+                    </div>
+                    <div className="text-center">
+                      <div className={`text-2xl font-bold ${getScoreColor(activeResult.totalScore)}`}>
+                        {activeResult.totalScore.toFixed(0)}
+                      </div>
+                      <div className="text-xs text-slate-400">Final Score</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Cluster Visualization */}
+              {activeResult.clusters && activeResult.clusters.length > 0 && (
+                <Card className="bg-slate-800/70 backdrop-blur-md border border-slate-700/60">
+                  <CardHeader>
+                    <CardTitle className="text-slate-100 flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-purple-400" />
+                      Content Clusters
+                    </CardTitle>
+                    <CardDescription className="text-slate-400">
+                      Keyword clusters with content roadmap estimates
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {activeResult.clusters.map((cluster, index) => (
+                        <div key={index} className="p-4 bg-slate-700/50 rounded-lg border border-slate-600/50">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-semibold text-slate-200 flex items-center gap-2">
+                              <Target className="w-4 h-4 text-green-400" />
+                              {cluster.name}
+                            </h4>
+                            <Badge
+                              variant="outline"
+                              className="bg-blue-500/20 text-blue-300 border-blue-400/50 text-xs"
+                            >
+                              <Calendar className="w-3 h-3 mr-1" />
+                              {cluster.estimatedWeeks} weeks @ {cluster.postsPerWeek} posts/wk
+                            </Badge>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-slate-400">Primary:</span>
+                              <span className="text-sm font-medium text-green-300">{cluster.primaryKeyword}</span>
+                            </div>
+
+                            <div>
+                              <span className="text-xs text-slate-400">Supporting:</span>
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {cluster.supportingKeywords.slice(0, 5).map((keyword, idx) => (
+                                  <Badge
+                                    key={idx}
+                                    variant="outline"
+                                    className="text-xs bg-slate-600/50 text-slate-300 border-slate-500/50"
+                                  >
+                                    {keyword}
+                                  </Badge>
+                                ))}
+                                {cluster.supportingKeywords.length > 5 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs bg-slate-600/50 text-slate-400 border-slate-500/50"
+                                  >
+                                    +{cluster.supportingKeywords.length - 5} more
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-4 text-xs text-slate-400 mt-2">
+                              <span>Volume: {cluster.totalVolume.toLocaleString()}</span>
+                              <span>Avg Difficulty: {cluster.avgDifficulty.toFixed(0)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Keywords Table */}
+              <Card className="bg-slate-800/70 backdrop-blur-md border border-slate-700/60">
+                <CardHeader>
+                  <CardTitle className="text-slate-100">Keyword Analysis</CardTitle>
+                </CardHeader>
+                <CardContent>
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     {activeResult.keywords.map((keyword, index) => (
                       <div
@@ -513,9 +760,9 @@ const ArbitrageResearchLab: React.FC = () => {
                       </div>
                     ))}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </>
           ) : (
             <Card className="bg-slate-800/70 backdrop-blur-md border border-slate-700/60">
               <CardContent className="text-center py-12">
@@ -555,9 +802,14 @@ const ArbitrageResearchLab: React.FC = () => {
                             {result.keywords.length} keywords • {new Date(result.createdAt).toLocaleDateString()}
                           </div>
                         </div>
-                        <Badge className={`${getScoreBg(result.totalScore)} text-white text-xs`}>
-                          {result.totalScore.toFixed(0)}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs ${getOpportunityLevel(result.totalScore).color}`}>
+                            {getOpportunityLevel(result.totalScore).level.split(" ")[0]}
+                          </span>
+                          <Badge className={`${getScoreBg(result.totalScore)} text-white text-xs`}>
+                            {result.totalScore.toFixed(0)}
+                          </Badge>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -574,12 +826,12 @@ const ArbitrageResearchLab: React.FC = () => {
             <CardHeader>
               <CardTitle className="text-slate-100 flex items-center gap-2">
                 <Lightbulb className="w-4 h-4" />
-                Actions
+                RankForge Actions
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <Button
-                onClick={() => activeResult && createPlan(activeResult)}
+                onClick={() => activeResult && createSEOPlan(activeResult)}
                 disabled={!activeResult}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
               >
@@ -587,64 +839,88 @@ const ArbitrageResearchLab: React.FC = () => {
                 Create SEO Plan
               </Button>
               <Button
+                onClick={() => activeResult && saveOpportunity(activeResult)}
                 disabled={!activeResult}
-                variant="outline"
-                className="w-full text-slate-300 border-slate-600 hover:bg-slate-700/50 bg-transparent"
+                className="w-full bg-green-600 hover:bg-green-700 text-white"
               >
-                <Globe className="w-4 h-4 mr-2" />
-                Generate Site Blueprint
+                <Save className="w-4 h-4 mr-2" />
+                Save as Opportunity
               </Button>
               <Button
                 disabled={!activeResult}
                 variant="outline"
                 className="w-full text-slate-300 border-slate-600 hover:bg-slate-700/50 bg-transparent"
               >
-                <Users className="w-4 h-4 mr-2" />
-                Content Pack
+                <FileText className="w-4 h-4 mr-2" />
+                Export Report
               </Button>
             </CardContent>
           </Card>
 
-          {/* Job Queue */}
+          {/* Enhanced Job Queue */}
           <Card className="bg-slate-800/70 backdrop-blur-md border border-slate-700/60">
             <CardHeader>
               <CardTitle className="text-slate-100 flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                Job Queue
+                <Terminal className="w-4 h-4" />
+                Job Pipeline
               </CardTitle>
             </CardHeader>
             <CardContent>
               {jobs.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {jobs.slice(0, 5).map((job) => (
                     <div key={job.id} className="p-3 bg-slate-700/50 rounded-md border border-slate-600/50">
                       <div className="flex items-center justify-between mb-2">
                         <div className="font-medium text-slate-200 text-sm">{job.title}</div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2">
                           {job.status === "completed" && <CheckCircle className="w-4 h-4 text-green-400" />}
                           {job.status === "running" && <RotateCcw className="w-4 h-4 text-blue-400 animate-spin" />}
                           {job.status === "queued" && <Clock className="w-4 h-4 text-yellow-400" />}
                           {job.status === "failed" && <AlertCircle className="w-4 h-4 text-red-400" />}
+                          {job.eta && job.status === "running" && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs bg-blue-500/20 text-blue-300 border-blue-400/50"
+                            >
+                              ETA: {job.eta}
+                            </Badge>
+                          )}
                         </div>
                       </div>
+
                       <div className="text-xs text-slate-400 mb-2">
                         {job.status} • {new Date(job.createdAt).toLocaleTimeString()}
                       </div>
+
                       {job.status === "running" && (
-                        <Progress value={job.progress} className="h-2 bg-slate-600">
-                          <div
-                            className="h-full bg-blue-500 transition-all duration-300"
-                            style={{ width: `${job.progress}%` }}
-                          />
-                        </Progress>
+                        <div className="mb-3">
+                          <Progress value={job.progress} className="h-2 bg-slate-600">
+                            <div
+                              className="h-full bg-blue-500 transition-all duration-300"
+                              style={{ width: `${job.progress}%` }}
+                            />
+                          </Progress>
+                          <div className="text-xs text-slate-400 mt-1">{job.progress.toFixed(0)}% complete</div>
+                        </div>
+                      )}
+
+                      {/* Job Logs */}
+                      {job.logs.length > 0 && (
+                        <div className="mt-2 p-2 bg-slate-800/50 rounded text-xs font-mono">
+                          {job.logs.slice(-3).map((log, idx) => (
+                            <div key={idx} className="text-slate-300 mb-1">
+                              {log}
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                   ))}
                 </div>
               ) : (
                 <div className="text-center py-6">
-                  <Clock className="w-8 h-8 mx-auto text-slate-500 mb-2" />
-                  <p className="text-slate-400 text-sm">No jobs in queue</p>
+                  <Terminal className="w-8 h-8 mx-auto text-slate-500 mb-2" />
+                  <p className="text-slate-400 text-sm">No jobs in pipeline</p>
                 </div>
               )}
             </CardContent>

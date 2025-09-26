@@ -1095,6 +1095,14 @@ function CommandCenter() {
   const [activeTab, setActiveTab] = useState("domains") // Default to domains tab
   const { logout } = useAuth()
 
+  const endpoints = [
+    { method: "GET", path: "/healthz", description: "System health check" },
+    { method: "POST", path: "/projects", description: "Create new project" },
+    { method: "POST", path: "/keywords/intake", description: "Process keyword clusters" },
+    { method: "POST", path: "/plans/auto", description: "Generate SEO plan" },
+    { method: "GET", path: "/plans", description: "List all plans" },
+  ]
+
   return (
     <div className="min-h-screen relative text-slate-100">
       <MatrixRain />
