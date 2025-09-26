@@ -1,106 +1,116 @@
 "use client"
 
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { RefreshCw } from "lucide-react"
-import type { Cluster } from "@/lib/api"
+import { Progress } from "@/components/ui/progress"
+import { Clock, TrendingUp } from "lucide-react"
 
 interface ClusterCardProps {
-  cluster: Cluster
-  planStats?: {
-    da_target: number
-    links_needed: number
-    articles_needed: number
-    eta_weeks: number
+  cluster: {
+    id: string
+    name: string
+    keywords: string[]
+    difficulty: number
+    volume: number
+    intent: string
+    color: string
   }
-  onRecalculate?: () => void
-  isRecalculating?: boolean
+  estimatedDays?: number
 }
 
-export function ClusterCard({ cluster, planStats, onRecalculate, isRecalculating = false }: ClusterCardProps) {
+export default function ClusterCard({ cluster, estimatedDays = 14 }: ClusterCardProps) {
+  const getDifficultyColor = (difficulty: number) => {
+    if (difficulty > 70) return "text-ember border-ember/30"
+    if (difficulty > 40) return "text-yellow-400 border-yellow-400/30"
+    return "text-matrix border-matrix/30"
+  }
+
   const getIntentColor = (intent: string) => {
-    switch (intent) {
+    switch (intent.toLowerCase()) {
       case "commercial":
-        return "bg-ember/20 text-ember border-ember/30"
-      case "transactional":
-        return "bg-matrix/20 text-matrix border-matrix/30"
+        return "text-matrix border-matrix/30"
       case "informational":
-        return "bg-blue-500/20 text-blue-400 border-blue-500/30"
+        return "text-blue-400 border-blue-400/30"
+      case "navigational":
+        return "text-purple-400 border-purple-400/30"
       default:
-        return "bg-white/10 text-zincsoft border-white/20"
+        return "text-zincsoft border-white/10"
     }
   }
 
-  const getDifficultyColor = (daTarget: number) => {
-    if (daTarget <= 30) return "text-matrix" // Easy - green
-    if (daTarget <= 50) return "text-yellow-400" // Medium - yellow
-    return "text-ember" // Hard - red
-  }
-
   return (
-    <Card className="card">
-      <CardHeader className="card-header flex-row items-center justify-between">
-        <div className="flex items-center gap-3">
-          <CardTitle className="text-white text-sm font-medium">{cluster.cluster}</CardTitle>
-          <Badge className={`badge ${getIntentColor(cluster.intent)}`}>{cluster.intent}</Badge>
-        </div>
-        {onRecalculate && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onRecalculate}
-            disabled={isRecalculating}
-            className="h-8 w-8 p-0 hover:bg-white/10"
-          >
-            <RefreshCw className={`h-3 w-3 ${isRecalculating ? "animate-spin" : ""}`} />
-          </Button>
-        )}
-      </CardHeader>
-
-      <CardContent className="card-body space-y-4">
-        {/* Primary Keyword */}
-        <div>
-          <p className="text-xs text-zincsoft/70 mb-1">Primary Keyword</p>
-          <p className="text-sm font-medium text-white">{cluster.primary_keyword}</p>
-        </div>
-
-        {/* Supporting Keywords */}
-        <div>
-          <p className="text-xs text-zincsoft/70 mb-2">Supporting Keywords</p>
-          <div className="flex flex-wrap gap-1">
-            {cluster.keywords.slice(0, 6).map((keyword, index) => (
-              <span key={index} className="text-xs px-2 py-1 bg-white/5 rounded border border-white/10 text-zincsoft">
-                {keyword}
-              </span>
-            ))}
-            {cluster.keywords.length > 6 && (
-              <span className="text-xs px-2 py-1 text-zincsoft/60">+{cluster.keywords.length - 6} more</span>
-            )}
+    <Card className="bg-panel border-white/10 hover:border-white/20 transition-colors">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div
+              className="w-3 h-3 rounded-full shadow-lg"
+              style={{
+                backgroundColor: cluster.color,
+                boxShadow: `0 0 8px ${cluster.color}40`,
+              }}
+            />
+            <h4 className="font-semibold text-white">{cluster.name}</h4>
           </div>
+          <Badge variant="outline" className="text-xs text-zincsoft border-white/10">
+            {cluster.keywords.length} keywords
+          </Badge>
         </div>
 
-        {/* Plan Stats */}
-        {planStats && (
-          <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/5">
-            <div className="text-center">
-              <p className="text-xs text-zincsoft/70">DA Target</p>
-              <p className={`text-lg font-bold ${getDifficultyColor(planStats.da_target)}`}>{planStats.da_target}</p>
+        <div className="space-y-3">
+          {/* Metrics Row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zincsoft">Difficulty</span>
+                <Badge variant="outline" className={`text-xs ${getDifficultyColor(cluster.difficulty)}`}>
+                  {cluster.difficulty}/100
+                </Badge>
+              </div>
+              <Progress value={cluster.difficulty} className="h-1.5 bg-gunmetal" />
             </div>
-            <div className="text-center">
-              <p className="text-xs text-zincsoft/70">Links</p>
-              <p className="text-lg font-bold text-white">{planStats.links_needed}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-zincsoft/70">Articles</p>
-              <p className="text-lg font-bold text-white">{planStats.articles_needed}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-zincsoft/70">ETA</p>
-              <p className="text-lg font-bold text-white">{planStats.eta_weeks}w</p>
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zincsoft">Volume</span>
+                <span className="text-xs text-white font-medium">{cluster.volume.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <TrendingUp className="w-3 h-3 text-matrix" />
+                <span className="text-xs text-matrix">High potential</span>
+              </div>
             </div>
           </div>
-        )}
+
+          {/* Intent & Timeline */}
+          <div className="flex items-center justify-between">
+            <Badge variant="outline" className={`text-xs ${getIntentColor(cluster.intent)}`}>
+              {cluster.intent}
+            </Badge>
+
+            <div className="flex items-center gap-1 text-xs text-zincsoft">
+              <Clock className="w-3 h-3" />
+              <span>~{estimatedDays}d</span>
+            </div>
+          </div>
+
+          {/* Keywords Preview */}
+          <div className="space-y-1">
+            <div className="text-xs text-zincsoft">Top Keywords:</div>
+            <div className="flex flex-wrap gap-1">
+              {cluster.keywords.slice(0, 2).map((keyword, i) => (
+                <Badge key={i} variant="secondary" className="text-xs bg-gunmetal text-zincsoft border-white/5">
+                  {keyword}
+                </Badge>
+              ))}
+              {cluster.keywords.length > 2 && (
+                <Badge variant="secondary" className="text-xs bg-gunmetal text-zincsoft border-white/5">
+                  +{cluster.keywords.length - 2}
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
       </CardContent>
     </Card>
   )

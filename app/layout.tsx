@@ -8,8 +8,8 @@ import ClientLayout from "./client-layout"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "AI Affiliate Networks - RankForge Engine v0.3",
-  description: "Professional SEO command center with Matrix operator aesthetic",
+  title: "AI Affiliate Networks - RankForge Engine",
+  description: "Advanced SEO and affiliate marketing command center",
     generator: 'v0.app'
 }
 

@@ -1,12 +1,26 @@
 import { NextResponse } from "next/server"
-import { initializeUsers } from "@/lib/auth"
+import { createToken, defaultUser } from "@/lib/auth"
+import { cookies } from "next/headers"
 
 export async function POST() {
   try {
-    await initializeUsers()
-    return NextResponse.json({ success: true, message: "Users initialized successfully" })
+    // Auto-login for development
+    const token = await createToken(defaultUser)
+
+    const cookieStore = await cookies()
+    cookieStore.set("auth-token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24, // 24 hours
+    })
+
+    return NextResponse.json({
+      success: true,
+      user: defaultUser,
+    })
   } catch (error) {
-    console.error("User initialization error:", error)
-    return NextResponse.json({ error: "Failed to initialize users" }, { status: 500 })
+    console.error("Init auth error:", error)
+    return NextResponse.json({ error: "Init failed" }, { status: 500 })
   }
 }

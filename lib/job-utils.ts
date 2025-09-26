@@ -1,50 +1,44 @@
-interface Job {
+export interface Job {
   id: string
-  type: "research" | "plan" | "content"
-  status: "queued" | "running" | "completed" | "failed"
+  type: string
+  status: "pending" | "running" | "completed" | "failed"
   progress: number
-  result?: any
-  error?: string
-  createdAt: string
-  updatedAt: string
-  title: string
+  startedAt: string
+  estimatedCompletion?: string
+  logs: string[]
 }
 
-// In-memory job storage (in production, use Redis or database)
-const jobs = new Map<string, Job>()
-
-// Helper function to create and track jobs
-export function createJob(type: Job["type"], title: string): string {
-  const jobId = `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-
-  const job: Job = {
-    id: jobId,
+export function createJob(type: string): Job {
+  return {
+    id: `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     type,
-    status: "queued",
+    status: "pending",
     progress: 0,
-    title,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }
-
-  jobs.set(jobId, job)
-  return jobId
-}
-
-// Helper function to update job status
-export function updateJob(jobId: string, updates: Partial<Job>) {
-  const job = jobs.get(jobId)
-  if (job) {
-    const updatedJob = {
-      ...job,
-      ...updates,
-      updatedAt: new Date().toISOString(),
-    }
-    jobs.set(jobId, updatedJob)
+    startedAt: new Date().toISOString(),
+    logs: [`Initializing ${type}...`],
   }
 }
 
-// Helper function to get job
-export function getJob(jobId: string): Job | undefined {
-  return jobs.get(jobId)
+export function updateJobProgress(job: Job, progress: number, log?: string): Job {
+  const updatedJob = { ...job, progress }
+
+  if (log) {
+    updatedJob.logs = [...job.logs, log]
+  }
+
+  if (progress >= 100) {
+    updatedJob.status = "completed"
+  } else if (progress > 0) {
+    updatedJob.status = "running"
+  }
+
+  return updatedJob
+}
+
+export function estimateCompletion(job: Job): string {
+  const elapsed = Date.now() - new Date(job.startedAt).getTime()
+  const rate = job.progress / elapsed
+  const remaining = (100 - job.progress) / rate
+
+  return new Date(Date.now() + remaining).toISOString()
 }

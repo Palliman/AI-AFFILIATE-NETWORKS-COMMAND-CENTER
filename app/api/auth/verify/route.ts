@@ -1,39 +1,19 @@
-import { type NextRequest, NextResponse } from "next/server"
-import jwt from "jsonwebtoken"
-import { getUserByUsername } from "@/lib/auth"
+import { NextResponse } from "next/server"
+import { getCurrentUser } from "@/lib/auth"
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production"
-
-// Force dynamic rendering for this route
 export const dynamic = "force-dynamic"
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const token = request.cookies.get("auth-token")?.value
+    const user = await getCurrentUser()
 
-    if (!token) {
-      return NextResponse.json({ error: "No token provided" }, { status: 401 })
-    }
-
-    // Verify JWT token
-    const decoded = jwt.verify(token, JWT_SECRET) as any
-
-    // Get fresh user data
-    const user = await getUserByUsername(decoded.username)
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 401 })
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
-    return NextResponse.json({
-      user: {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        lastLogin: user.lastLogin,
-      },
-    })
+    return NextResponse.json({ user })
   } catch (error) {
     console.error("Token verification error:", error)
-    return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    return NextResponse.json({ error: "Verification failed" }, { status: 500 })
   }
 }

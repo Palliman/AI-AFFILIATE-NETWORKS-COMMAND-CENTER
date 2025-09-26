@@ -1,322 +1,239 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Upload, Play, Download, Camera } from "lucide-react"
-import { ClusterCard } from "@/components/cluster-card"
-import { MissionLog, type LogEntry } from "@/components/mission-log"
-import { api, type Project, type KeywordIntakeResponse } from "@/lib/api"
-import { toast } from "sonner"
+import { Textarea } from "@/components/ui/textarea"
+import { Progress } from "@/components/ui/progress"
+import { Upload, Zap, BarChart3, Target, Clock } from "lucide-react"
+import ClusterCard from "@/components/cluster-card"
+
+interface Cluster {
+  id: string
+  name: string
+  keywords: string[]
+  difficulty: number
+  volume: number
+  intent: string
+  color: string
+}
 
 export default function IntakePage() {
-  const [projects, setProjects] = useState<Project[]>([])
-  const [results, setResults] = useState<KeywordIntakeResponse | null>(null)
-  const [logEntries, setLogEntries] = useState<LogEntry[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    project_id: "",
-    domain: "",
-    keywords: "",
-  })
+  const [keywords, setKeywords] = useState("")
+  const [clusters, setClusters] = useState<Cluster[]>([])
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [progress, setProgress] = useState(0)
 
-  useEffect(() => {
-    loadProjects()
-  }, [])
+  const handleProcess = async () => {
+    if (!keywords.trim()) return
 
-  const loadProjects = async () => {
-    try {
-      const data = await api.getProjects()
-      setProjects(data)
-    } catch (error) {
-      console.error("Error loading projects:", error)
-    }
-  }
+    setIsProcessing(true)
+    setProgress(0)
+    setClusters([])
 
-  const addLogEntry = (message: string, type: LogEntry["type"] = "info") => {
-    const entry: LogEntry = {
-      id: Date.now().toString(),
-      timestamp: new Date().toISOString(),
-      message,
-      type,
-    }
-    setLogEntries((prev) => [...prev, entry])
-  }
-
-  const parseKeywords = (text: string): string[] => {
-    return text
-      .split(/[\n,;|\t]+/)
-      .map((k) => k.trim())
-      .filter((k) => k.length > 0)
-      .filter((k, i, arr) => arr.indexOf(k) === i) // Remove duplicates
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!formData.project_id || !formData.domain || !formData.keywords) {
-      toast.error("Please fill in all required fields")
-      return
-    }
-
-    const keywords = parseKeywords(formData.keywords)
-    if (keywords.length === 0) {
-      toast.error("Please enter at least one keyword")
-      return
-    }
-
-    setIsLoading(true)
-    addLogEntry(`Starting intake for ${keywords.length} keywords...`)
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(progressInterval)
+          return 90
+        }
+        return prev + Math.random() * 15
+      })
+    }, 500)
 
     try {
-      const response = await api.processKeywords({
-        project_id: Number.parseInt(formData.project_id),
-        domain: formData.domain,
-        keywords,
-        options: {
-          num_competitors: 10,
-          avg_link_strength: 0.25,
-          kd_bucket: 40,
-          posts_per_week: 3,
-          links_per_month: 6,
-        },
+      const keywordList = keywords.split("\n").filter((k) => k.trim())
+
+      const response = await fetch("/api/keywords/intake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keywords: keywordList }),
       })
 
-      setResults(response)
-      addLogEntry(`✓ Processed ${response.clusters.length} clusters`, "success")
-      addLogEntry(`✓ Created ${response.plans_created} SEO plans`, "success")
-
-      // Log each cluster
-      response.clusters.forEach((cluster) => {
-        const planId = response.details[cluster.cluster]
-        addLogEntry(`Cluster "${cluster.cluster}": ${cluster.keywords.length} keywords → Plan #${planId} created`)
-      })
-
-      toast.success("Keyword intake completed successfully")
+      if (response.ok) {
+        const data = await response.json()
+        setClusters(data.clusters)
+        setProgress(100)
+      }
     } catch (error) {
-      addLogEntry(`✗ Intake failed: ${error instanceof Error ? error.message : "Unknown error"}`, "error")
-      toast.error("Failed to process keywords")
-      console.error("Error processing keywords:", error)
+      console.error("Processing failed:", error)
     } finally {
-      setIsLoading(false)
+      clearInterval(progressInterval)
+      setTimeout(() => {
+        setIsProcessing(false)
+        setProgress(0)
+      }, 1000)
     }
   }
 
-  const handleRecalculatePlan = async (cluster: string, primaryKeyword: string) => {
-    if (!formData.project_id || !formData.domain) return
+  const handleCreatePlan = async () => {
+    if (clusters.length === 0) return
+
+    const allKeywords = clusters.flatMap((c) => c.keywords)
 
     try {
-      addLogEntry(`Recalculating plan for "${cluster}"...`)
-      await api.createPlan(Number.parseInt(formData.project_id), primaryKeyword, formData.domain)
-      addLogEntry(`✓ Plan recalculated for "${cluster}"`, "success")
-      toast.success("Plan recalculated successfully")
+      const response = await fetch("/api/plans/auto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          keywords: allKeywords,
+          clusters: clusters.length,
+          targetDa: 50,
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log("SEO Plan created:", data)
+      }
     } catch (error) {
-      addLogEntry(`✗ Failed to recalculate plan for "${cluster}"`, "error")
-      toast.error("Failed to recalculate plan")
+      console.error("Plan creation failed:", error)
     }
-  }
-
-  const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const text = e.target?.result as string
-      const keywords = parseKeywords(text)
-      setFormData({ ...formData, keywords: keywords.join("\n") })
-      addLogEntry(`Loaded ${keywords.length} keywords from CSV`, "success")
-      toast.success(`Loaded ${keywords.length} keywords from file`)
-    }
-    reader.readAsText(file)
-  }
-
-  const handleExportBlueprint = () => {
-    if (!results) return
-
-    const blueprint = {
-      project_id: results.project_id,
-      domain: results.domain,
-      clusters: results.clusters,
-      plans_created: results.plans_created,
-      exported_at: new Date().toISOString(),
-    }
-
-    const blob = new Blob([JSON.stringify(blueprint, null, 2)], { type: "application/json" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `blueprint-${results.domain}-${Date.now()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-
-    addLogEntry("✓ Blueprint exported successfully", "success")
-    toast.success("Blueprint exported successfully")
-  }
-
-  const handleSerpSnapshot = () => {
-    addLogEntry("SERP snapshot queued...", "info")
-    toast.success("SERP snapshot queued")
   }
 
   return (
-    <div className="min-h-screen bg-gunmetal matrix-bg">
-      <div className="container mx-auto px-4 py-8">
-        <div className="space-y-8">
-          {/* Header */}
-          <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Keyword Intake</h1>
-            <p className="text-zincsoft">Process keywords into semantic clusters and generate SEO plans</p>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left Panel - Research Parameters */}
-            <div className="space-y-6">
-              <Card className="card">
-                <CardHeader className="card-header">
-                  <CardTitle className="text-white">Research Parameters</CardTitle>
-                </CardHeader>
-                <CardContent className="card-body">
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                      <Label htmlFor="project_id" className="text-zincsoft">
-                        Project ID *
-                      </Label>
-                      <Input
-                        id="project_id"
-                        type="number"
-                        value={formData.project_id}
-                        onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
-                        placeholder="1"
-                        className="input"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="domain" className="text-zincsoft">
-                        Domain *
-                      </Label>
-                      <Input
-                        id="domain"
-                        value={formData.domain}
-                        onChange={(e) => setFormData({ ...formData, domain: e.target.value })}
-                        placeholder="yourdomain.com"
-                        className="input"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="keywords" className="text-zincsoft">
-                        Keywords (one per line) *
-                      </Label>
-                      <Textarea
-                        id="keywords"
-                        value={formData.keywords}
-                        onChange={(e) => setFormData({ ...formData, keywords: e.target.value })}
-                        placeholder="running shoes&#10;best running shoes&#10;nike running shoes"
-                        rows={8}
-                        className="input"
-                        required
-                      />
-                    </div>
-                    <Button type="submit" disabled={isLoading} className="btn w-full">
-                      <Play className="w-4 h-4 mr-2" />
-                      {isLoading ? "Processing..." : "Run Intake"}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-
-              {/* Actions Panel */}
-              <Card className="card">
-                <CardHeader className="card-header">
-                  <CardTitle className="text-white">Actions</CardTitle>
-                </CardHeader>
-                <CardContent className="card-body">
-                  <div className="space-y-3">
-                    <div>
-                      <Label htmlFor="csv-upload" className="text-zincsoft text-sm">
-                        Bulk Intake (CSV)
-                      </Label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Input
-                          id="csv-upload"
-                          type="file"
-                          accept=".csv,.txt"
-                          onChange={handleBulkUpload}
-                          className="input text-sm"
-                        />
-                        <Button variant="ghost" size="sm" className="btn-secondary">
-                          <Upload className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    <Button onClick={handleExportBlueprint} disabled={!results} className="btn-secondary w-full">
-                      <Download className="w-4 h-4 mr-2" />
-                      Export Cluster → Blueprint
-                    </Button>
-                    <Button onClick={handleSerpSnapshot} className="btn-secondary w-full">
-                      <Camera className="w-4 h-4 mr-2" />
-                      Run SERP Snapshot
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Right Panel - Live Results */}
-            <div className="space-y-6">
-              {/* Results */}
-              <Card className="card">
-                <CardHeader className="card-header">
-                  <CardTitle className="text-white">Live Research Results</CardTitle>
-                </CardHeader>
-                <CardContent className="card-body">
-                  {results ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-4 mb-4">
-                        <Badge className="badge bg-matrix/20 text-matrix border-matrix/30">
-                          Plans created: {results.plans_created}
-                        </Badge>
-                        <Badge className="badge">{results.clusters.length} clusters</Badge>
-                      </div>
-
-                      <div className="grid gap-4">
-                        {results.clusters.map((cluster) => (
-                          <ClusterCard
-                            key={cluster.cluster}
-                            cluster={cluster}
-                            planStats={{
-                              da_target: Math.floor(Math.random() * 60) + 20,
-                              links_needed: Math.floor(Math.random() * 20) + 5,
-                              articles_needed: Math.floor(Math.random() * 10) + 3,
-                              eta_weeks: Math.floor(Math.random() * 12) + 4,
-                            }}
-                            onRecalculate={() => handleRecalculatePlan(cluster.cluster, cluster.primary_keyword)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <p className="text-zincsoft">No results yet.</p>
-                      <p className="text-zincsoft/60 text-sm mt-1">Run keyword intake to see clusters appear here.</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Mission Log */}
-              <MissionLog entries={logEntries} isLoading={isLoading} />
-            </div>
-          </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-white">Keyword Intake</h1>
+          <p className="text-zincsoft">Process and cluster keywords for SEO analysis</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-matrix border-matrix/30">
+            AI Clustering
+          </Badge>
+          <Badge variant="outline" className="text-blue-400 border-blue-400/30">
+            Real-time Analysis
+          </Badge>
         </div>
       </div>
+
+      {/* Input Section */}
+      <Card className="bg-panel border-white/10">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-white">
+            <Upload className="w-5 h-5 text-matrix" />
+            Keyword Input
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="text-sm text-zincsoft mb-2 block">Enter keywords (one per line):</label>
+            <Textarea
+              value={keywords}
+              onChange={(e) => setKeywords(e.target.value)}
+              placeholder="best laptops 2024&#10;gaming laptops&#10;budget laptops&#10;laptop reviews&#10;laptop buying guide"
+              className="h-40 bg-gunmetal border-white/10 text-white placeholder:text-zincsoft resize-none font-mono"
+            />
+          </div>
+
+          <div className="flex items-center gap-4">
+            <Button
+              onClick={handleProcess}
+              disabled={isProcessing || !keywords.trim()}
+              className="bg-matrix hover:bg-matrix/80 text-black"
+            >
+              <Zap className="w-4 h-4 mr-2" />
+              {isProcessing ? "Processing..." : "Process Keywords"}
+            </Button>
+
+            <div className="text-sm text-zincsoft">
+              {keywords.split("\n").filter((k) => k.trim()).length} keywords ready
+            </div>
+          </div>
+
+          {isProcessing && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-zincsoft">Processing keywords...</span>
+                <span className="text-white">{Math.round(progress)}%</span>
+              </div>
+              <Progress value={progress} className="h-2 bg-gunmetal" />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Results Section */}
+      {clusters.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <h2 className="text-xl font-semibold text-white">Cluster Analysis Results</h2>
+              <Badge variant="outline" className="text-matrix border-matrix/30">
+                {clusters.length} clusters found
+              </Badge>
+            </div>
+
+            <Button onClick={handleCreatePlan} className="bg-matrix hover:bg-matrix/80 text-black">
+              <Target className="w-4 h-4 mr-2" />
+              Create SEO Plan
+            </Button>
+          </div>
+
+          {/* Cluster Stats */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card className="bg-panel border-white/10">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <BarChart3 className="w-4 h-4 text-matrix" />
+                  <span className="text-sm text-zincsoft">Total Keywords</span>
+                </div>
+                <div className="text-2xl font-bold text-white">
+                  {clusters.reduce((sum, c) => sum + c.keywords.length, 0)}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-panel border-white/10">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Target className="w-4 h-4 text-blue-400" />
+                  <span className="text-sm text-zincsoft">Avg Difficulty</span>
+                </div>
+                <div className="text-2xl font-bold text-white">
+                  {Math.round(clusters.reduce((sum, c) => sum + c.difficulty, 0) / clusters.length)}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-panel border-white/10">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-4 h-4 text-yellow-400" />
+                  <span className="text-sm text-zincsoft">Est. Timeline</span>
+                </div>
+                <div className="text-2xl font-bold text-white">{Math.ceil(clusters.length * 2)}w</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Cluster Cards */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {clusters.map((cluster, index) => (
+              <ClusterCard key={cluster.id} cluster={cluster} estimatedDays={14 + index * 7} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {clusters.length === 0 && !isProcessing && (
+        <Card className="bg-panel border-white/10">
+          <CardContent className="p-12 text-center">
+            <BarChart3 className="w-16 h-16 text-zincsoft mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-white mb-2">Ready for Analysis</h3>
+            <p className="text-zincsoft mb-6">
+              Enter your keywords above and click "Process Keywords" to see cluster analysis
+            </p>
+            <div className="text-sm text-zincsoft">
+              💡 Tip: Include a mix of head terms and long-tail keywords for best results
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

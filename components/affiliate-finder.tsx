@@ -1,31 +1,35 @@
 "use client"
 
-import type React from "react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ExternalLink, DollarSign } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Loader2, Search, DollarSign, TrendingUp } from "lucide-react"
 
-interface AffiliateOpportunityItem {
-  id: string
-  programName: string
-  category: string
+interface AffiliateOpportunity {
+  program: string
   commission: string
-  competition: "Low" | "Medium" | "High"
-  url: string
-  notes?: string
+  category: string
+  description: string
+  pros: string[]
+  cons: string[]
+  difficulty: "Easy" | "Medium" | "Hard"
+  potential: "Low" | "Medium" | "High"
 }
 
-const AffiliateFinder: React.FC = () => {
-  const [prompt, setPrompt] = useState("")
-  const [opportunities, setOpportunities] = useState<AffiliateOpportunityItem[]>([])
+export default function AffiliateFinder() {
+  const [query, setQuery] = useState("")
+  const [results, setResults] = useState<AffiliateOpportunity[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState("")
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSearch = async () => {
+    if (!query.trim()) return
+
     setIsLoading(true)
-    setError(null)
+    setError("")
+    setResults([])
 
     try {
       const response = await fetch("/api/affiliate-finder", {
@@ -33,110 +37,145 @@ const AffiliateFinder: React.FC = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ query }),
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to find affiliate opportunities")
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
 
       const data = await response.json()
-      setOpportunities(data)
-    } catch (err: any) {
-      console.error("Error finding affiliate opportunities:", err)
-      setError(err.message || "Could not find affiliate opportunities.")
-      setOpportunities([])
+
+      if (data.error) {
+        setError(data.error)
+      } else {
+        setResults(data.opportunities || [])
+      }
+    } catch (err) {
+      console.error("Affiliate finder error:", err)
+      setError("Failed to find affiliate opportunities. Please try again.")
     } finally {
       setIsLoading(false)
     }
   }
 
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty) {
+      case "Easy":
+        return "bg-green-500/20 text-green-400 border-green-500/30"
+      case "Medium":
+        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+      case "Hard":
+        return "bg-red-500/20 text-red-400 border-red-500/30"
+      default:
+        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+    }
+  }
+
+  const getPotentialColor = (potential: string) => {
+    switch (potential) {
+      case "High":
+        return "bg-matrix/20 text-matrix border-matrix/30"
+      case "Medium":
+        return "bg-blue-500/20 text-blue-400 border-blue-500/30"
+      case "Low":
+        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+      default:
+        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+    }
+  }
+
   return (
-    <div className="bg-black/60 backdrop-blur-sm text-slate-200 p-3 sm:p-4 border-b border-slate-700/50 space-y-3">
-      <div className="flex items-center gap-2 mb-1.5">
-        <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
-        <span className="font-semibold text-green-400 text-xs sm:text-sm uppercase">Affiliate Opportunity Finder</span>
-      </div>
-      <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2">
-        <Input
-          type="text"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Enter niche or keywords (e.g., 'eco-friendly pet products')"
-          className="bg-slate-700/60 border-slate-600 text-slate-100 placeholder:text-slate-400 flex-grow text-sm"
-          disabled={isLoading}
-        />
-        <Button
-          type="submit"
-          disabled={isLoading}
-          className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 whitespace-nowrap"
-        >
-          {isLoading ? "Searching..." : "Search"}
-        </Button>
-      </form>
-
-      {error && <p className="text-red-400 text-sm">Error: {error}</p>}
-
-      {opportunities.length > 0 && (
-        <div className="space-y-2 max-h-80 sm:max-h-96 overflow-y-auto pr-2">
-          {opportunities.map((op) => (
-            <div key={op.id} className="p-3 bg-slate-700/50 rounded-md border border-slate-600/50 text-xs sm:text-sm">
-              <h4 className="font-semibold text-sm text-green-300 mb-1">{op.programName}</h4>
-              <div className="space-y-1">
-                <p className="text-slate-300">
-                  <span className="font-medium">Category:</span> {op.category}
-                </p>
-                {op.commission && (
-                  <p className="text-slate-300">
-                    <span className="font-medium">Commission:</span> {op.commission}
-                  </p>
-                )}
-                <p className="text-slate-300 flex items-center gap-2">
-                  <span className="font-medium">Competition:</span>
-                  <span
-                    className={`px-1.5 py-0.5 rounded-full text-xs ${
-                      op.competition === "Low"
-                        ? "bg-green-700/70 text-green-200"
-                        : op.competition === "Medium"
-                          ? "bg-yellow-700/70 text-yellow-200"
-                          : op.competition === "High"
-                            ? "bg-red-700/70 text-red-200"
-                            : "bg-gray-600/70 text-gray-200"
-                    }`}
-                  >
-                    {op.competition}
-                  </span>
-                </p>
-                <p className="text-slate-300 mt-1">
-                  <span className="font-medium">Notes:</span> {op.notes}
-                </p>
-                <a
-                  href={
-                    op.url.startsWith("http") ? op.url : `https://www.google.com/search?q=${encodeURIComponent(op.url)}`
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:text-blue-300 underline mt-1 inline-flex items-center gap-1 text-sm"
-                >
-                  {op.url.startsWith("http") ? "Visit Sign-up" : "Search for Program"}
-                  <ExternalLink size={12} />
-                </a>
-              </div>
-            </div>
-          ))}
+    <Card className="bg-panel border-white/10">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-white">
+          <DollarSign className="w-5 h-5 text-matrix" />
+          AI Affiliate Finder
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex gap-2">
+          <Input
+            placeholder="Enter niche, product, or keyword..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+            className="bg-gunmetal border-white/10 text-white placeholder:text-zincsoft"
+          />
+          <Button
+            onClick={handleSearch}
+            disabled={isLoading || !query.trim()}
+            className="bg-matrix hover:bg-matrix/80 text-black"
+          >
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+          </Button>
         </div>
-      )}
-      {isLoading && opportunities.length === 0 && (
-        <p className="text-slate-400 text-center text-sm">Searching for opportunities...</p>
-      )}
-      {!isLoading && !error && opportunities.length === 0 && prompt && (
-        <p className="text-slate-400 text-center text-sm">
-          No opportunities found for your query. Try being more specific or broader.
-        </p>
-      )}
-    </div>
+
+        {error && (
+          <div className="p-3 bg-ember/20 border border-ember/30 rounded-md">
+            <p className="text-ember text-sm">{error}</p>
+          </div>
+        )}
+
+        {results.length > 0 && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-white">Found {results.length} Affiliate Opportunities</h3>
+
+            {results.map((opportunity, index) => (
+              <Card key={index} className="bg-gunmetal border-white/10">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h4 className="font-semibold text-white mb-1">{opportunity.program}</h4>
+                      <p className="text-sm text-zincsoft mb-2">{opportunity.description}</p>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge variant="outline" className="text-matrix border-matrix/30">
+                          {opportunity.commission}
+                        </Badge>
+                        <Badge variant="outline" className="text-blue-400 border-blue-400/30">
+                          {opportunity.category}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Badge className={getDifficultyColor(opportunity.difficulty)}>{opportunity.difficulty}</Badge>
+                      <Badge className={getPotentialColor(opportunity.potential)}>
+                        <TrendingUp className="w-3 h-3 mr-1" />
+                        {opportunity.potential}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <h5 className="text-sm font-medium text-matrix mb-2">Pros:</h5>
+                      <ul className="text-xs text-zincsoft space-y-1">
+                        {opportunity.pros.map((pro, i) => (
+                          <li key={i} className="flex items-start gap-1">
+                            <span className="text-matrix mt-0.5">+</span>
+                            {pro}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <h5 className="text-sm font-medium text-ember mb-2">Cons:</h5>
+                      <ul className="text-xs text-zincsoft space-y-1">
+                        {opportunity.cons.map((con, i) => (
+                          <li key={i} className="flex items-start gap-1">
+                            <span className="text-ember mt-0.5">-</span>
+                            {con}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
-
-export default AffiliateFinder

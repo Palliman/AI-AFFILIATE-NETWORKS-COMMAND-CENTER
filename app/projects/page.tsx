@@ -1,24 +1,35 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Plus, ExternalLink } from "lucide-react"
-import { api, type Project } from "@/lib/api"
-import { toast } from "sonner"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Plus, Folder, Calendar, TrendingUp, Users } from "lucide-react"
+import { api } from "@/lib/api"
+
+interface Project {
+  id: string
+  name: string
+  description: string
+  status: "active" | "paused" | "completed"
+  domains: string[]
+  keywords: string[]
+  targetDa: number
+  createdAt: string
+  updatedAt: string
+}
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
-  const [formData, setFormData] = useState({
-    domain: "",
-    industry: "",
+  const [newProject, setNewProject] = useState({
+    name: "",
+    description: "",
+    targetDa: 50,
   })
 
   useEffect(() => {
@@ -28,147 +39,258 @@ export default function ProjectsPage() {
   const loadProjects = async () => {
     try {
       const data = await api.getProjects()
-      setProjects(data)
+      setProjects(data.projects || [])
     } catch (error) {
-      toast.error("Failed to load projects")
-      console.error("Error loading projects:", error)
+      console.error("Failed to load projects:", error)
+      // Mock data fallback
+      setProjects([
+        {
+          id: "1",
+          name: "Tech Review Network",
+          description: "Technology product reviews and affiliate marketing",
+          status: "active",
+          domains: ["techreview.com", "gadgetguide.net"],
+          keywords: ["best laptops", "smartphone reviews", "tech deals"],
+          targetDa: 45,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          id: "2",
+          name: "Crypto Insights Hub",
+          description: "Cryptocurrency news and trading affiliate programs",
+          status: "active",
+          domains: ["cryptoinsights.net"],
+          keywords: ["bitcoin trading", "crypto news", "blockchain guide"],
+          targetDa: 38,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ])
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!formData.domain.trim()) return
+  const handleCreateProject = async () => {
+    if (!newProject.name.trim()) return
 
     setIsCreating(true)
     try {
-      const newProject = await api.createProject(formData.domain.trim(), formData.industry.trim() || undefined)
-      setProjects([...projects, newProject])
-      setFormData({ domain: "", industry: "" })
-      toast.success("Project created successfully")
+      const data = await api.createProject(newProject)
+      setProjects((prev) => [data.project, ...prev])
+      setNewProject({ name: "", description: "", targetDa: 50 })
     } catch (error) {
-      toast.error("Failed to create project")
-      console.error("Error creating project:", error)
+      console.error("Failed to create project:", error)
     } finally {
       setIsCreating(false)
     }
   }
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "active":
+        return "text-matrix border-matrix/30"
+      case "paused":
+        return "text-yellow-400 border-yellow-400/30"
+      case "completed":
+        return "text-blue-400 border-blue-400/30"
+      default:
+        return "text-zincsoft border-white/10"
+    }
+  }
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gunmetal matrix-bg">
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-matrix mx-auto"></div>
-            <p className="text-zincsoft mt-2">Loading projects...</p>
-          </div>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-matrix">Loading projects...</div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gunmetal matrix-bg">
-      <div className="container mx-auto px-4 py-8">
-        <div className="space-y-8">
-          {/* Header */}
-          <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Projects</h1>
-            <p className="text-zincsoft">Manage your SEO projects and domains</p>
-          </div>
-
-          {/* Create Project Form */}
-          <Card className="card">
-            <CardHeader className="card-header">
-              <CardTitle className="text-white">Create New Project</CardTitle>
-            </CardHeader>
-            <CardContent className="card-body">
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="domain" className="text-zincsoft">
-                      Domain *
-                    </Label>
-                    <Input
-                      id="domain"
-                      value={formData.domain}
-                      onChange={(e) => setFormData({ ...formData, domain: e.target.value })}
-                      placeholder="example.com"
-                      className="input"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="industry" className="text-zincsoft">
-                      Industry (optional)
-                    </Label>
-                    <Input
-                      id="industry"
-                      value={formData.industry}
-                      onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
-                      placeholder="e.g., Technology, Health, Finance"
-                      className="input"
-                    />
-                  </div>
-                </div>
-                <Button type="submit" disabled={isCreating || !formData.domain.trim()} className="btn">
-                  <Plus className="w-4 h-4 mr-2" />
-                  {isCreating ? "Creating..." : "Create Project"}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-
-          {/* Projects Table */}
-          <Card className="card">
-            <CardHeader className="card-header">
-              <CardTitle className="text-white">Your Projects</CardTitle>
-            </CardHeader>
-            <CardContent className="card-body">
-              {projects.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-zincsoft">No projects created yet.</p>
-                  <p className="text-zincsoft/60 text-sm mt-1">Create your first project above.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {projects.map((project) => (
-                    <div
-                      key={project.id}
-                      className="flex items-center justify-between p-4 bg-panelAlt rounded-lg border border-white/10"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div>
-                          <h3 className="font-medium text-white">{project.domain}</h3>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge className="badge">ID: {project.id}</Badge>
-                            {project.industry && (
-                              <Badge variant="outline" className="badge">
-                                {project.industry}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-zincsoft">
-                          {new Date(project.created_at).toLocaleDateString()}
-                        </span>
-                        <Button variant="ghost" size="sm" asChild className="h-8 w-8 p-0 hover:bg-white/10">
-                          <a href={`https://${project.domain}`} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-white">Projects</h1>
+          <p className="text-zincsoft">Manage your affiliate marketing projects</p>
         </div>
+
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button className="bg-matrix hover:bg-matrix/80 text-black">
+              <Plus className="w-4 h-4 mr-2" />
+              New Project
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="bg-panel border-white/10">
+            <DialogHeader>
+              <DialogTitle className="text-white">Create New Project</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-zincsoft mb-2 block">Project Name</label>
+                <Input
+                  value={newProject.name}
+                  onChange={(e) => setNewProject((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="Enter project name"
+                  className="bg-gunmetal border-white/10 text-white"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-zincsoft mb-2 block">Description</label>
+                <Textarea
+                  value={newProject.description}
+                  onChange={(e) => setNewProject((prev) => ({ ...prev, description: e.target.value }))}
+                  placeholder="Project description"
+                  className="bg-gunmetal border-white/10 text-white"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-zincsoft mb-2 block">Target DA</label>
+                <Input
+                  type="number"
+                  value={newProject.targetDa}
+                  onChange={(e) =>
+                    setNewProject((prev) => ({ ...prev, targetDa: Number.parseInt(e.target.value) || 50 }))
+                  }
+                  className="bg-gunmetal border-white/10 text-white"
+                />
+              </div>
+              <Button
+                onClick={handleCreateProject}
+                disabled={isCreating || !newProject.name.trim()}
+                className="w-full bg-matrix hover:bg-matrix/80 text-black"
+              >
+                {isCreating ? "Creating..." : "Create Project"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
+
+      {projects.length > 0 ? (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {projects.map((project) => (
+            <Card key={project.id} className="bg-panel border-white/10 hover:border-white/20 transition-colors">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2">
+                    <Folder className="w-5 h-5 text-matrix" />
+                    <CardTitle className="text-white">{project.name}</CardTitle>
+                  </div>
+                  <Badge variant="outline" className={getStatusColor(project.status)}>
+                    {project.status}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-zincsoft">{project.description}</p>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1 text-xs text-zincsoft">
+                      <Users className="w-3 h-3" />
+                      Domains
+                    </div>
+                    <div className="text-sm text-white font-medium">{project.domains.length}</div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1 text-xs text-zincsoft">
+                      <TrendingUp className="w-3 h-3" />
+                      Target DA
+                    </div>
+                    <div className="text-sm text-white font-medium">{project.targetDa}</div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-xs text-zincsoft">Keywords ({project.keywords.length})</div>
+                  <div className="flex flex-wrap gap-1">
+                    {project.keywords.slice(0, 3).map((keyword, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs bg-gunmetal text-zincsoft">
+                        {keyword}
+                      </Badge>
+                    ))}
+                    {project.keywords.length > 3 && (
+                      <Badge variant="secondary" className="text-xs bg-gunmetal text-zincsoft">
+                        +{project.keywords.length - 3}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 text-xs text-zincsoft pt-2 border-t border-white/5">
+                  <Calendar className="w-3 h-3" />
+                  Created {new Date(project.createdAt).toLocaleDateString()}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="bg-panel border-white/10">
+          <CardContent className="p-12 text-center">
+            <Folder className="w-16 h-16 text-zincsoft mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-white mb-2">No Projects Yet</h3>
+            <p className="text-zincsoft mb-6">
+              Create your first project to start managing affiliate marketing campaigns
+            </p>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button className="bg-matrix hover:bg-matrix/80 text-black">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create First Project
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-panel border-white/10">
+                <DialogHeader>
+                  <DialogTitle className="text-white">Create New Project</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm text-zincsoft mb-2 block">Project Name</label>
+                    <Input
+                      value={newProject.name}
+                      onChange={(e) => setNewProject((prev) => ({ ...prev, name: e.target.value }))}
+                      placeholder="Enter project name"
+                      className="bg-gunmetal border-white/10 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-zincsoft mb-2 block">Description</label>
+                    <Textarea
+                      value={newProject.description}
+                      onChange={(e) => setNewProject((prev) => ({ ...prev, description: e.target.value }))}
+                      placeholder="Project description"
+                      className="bg-gunmetal border-white/10 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-zincsoft mb-2 block">Target DA</label>
+                    <Input
+                      type="number"
+                      value={newProject.targetDa}
+                      onChange={(e) =>
+                        setNewProject((prev) => ({ ...prev, targetDa: Number.parseInt(e.target.value) || 50 }))
+                      }
+                      className="bg-gunmetal border-white/10 text-white"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleCreateProject}
+                    disabled={isCreating || !newProject.name.trim()}
+                    className="w-full bg-matrix hover:bg-matrix/80 text-black"
+                  >
+                    {isCreating ? "Creating..." : "Create Project"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

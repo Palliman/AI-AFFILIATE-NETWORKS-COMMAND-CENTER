@@ -19,12 +19,6 @@ module.exports = {
     },
     extend: {
       colors: {
-        gunmetal: "#0F1115",
-        panel: "#151821",
-        panelAlt: "#0C0F15",
-        zincsoft: "#8A94A6",
-        ember: "#FF4D2E",
-        matrix: "#0AFF9D",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -58,6 +52,12 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Custom Matrix theme colors
+        matrix: "#0aff9d",
+        ember: "#ff4d2e",
+        gunmetal: "#1a1d23",
+        panel: "#0f1419",
+        zincsoft: "#a1a1aa",
       },
       borderRadius: {
         lg: "var(--radius)",

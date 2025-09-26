@@ -1,68 +1,63 @@
-// TypeScript interfaces for MongoDB documents
-export interface AffiliateEntry {
-  _id?: string
+export interface Domain {
   id: string
-  type: "blog" | "affiliate"
-  domain: string
-  description: string
-  affiliatePages: string[]
-  status: "active" | "pending" | "inactive"
-  earnings?: string
+  url: string
+  da: number
+  traffic: number
+  niche: string
+  status: "active" | "inactive" | "pending"
+  lastChecked: string
   createdAt: string
-  updatedAt: string
 }
 
 export interface Lead {
-  _id?: string
   id: string
-  name: string
-  number?: string
-  location?: string
-  site: string
-  hasActiveSEO?: boolean
-  seoPrice?: string
-  dateAdded: string
-  notes?: string
+  email: string
+  name?: string
+  source: string
+  status: "new" | "contacted" | "qualified" | "converted"
   createdAt: string
-  updatedAt: string
+  notes?: string
 }
 
 export interface ResearchResult {
-  _id?: string
   id: string
-  country: string
-  niche: string
-  keywords: KeywordData[]
-  opportunityScore: number
-  competitionScore: number
-  volumeScore: number
-  cpcRpmScore: number
-  saturationScore: number
-  localizationPenalty: number
-  totalScore: number
-  status: "pending" | "running" | "completed" | "failed"
+  query: string
+  results: {
+    domains: Domain[]
+    keywords: string[]
+    competition: number
+    opportunity: number
+  }
+  createdAt: string
+}
+
+export interface Project {
+  id: string
+  name: string
+  description?: string
+  status: "active" | "paused" | "completed"
+  domains: string[]
+  keywords: string[]
+  targetDa: number
   createdAt: string
   updatedAt: string
 }
 
-export interface KeywordData {
-  keyword: string
-  volume: number
-  competition: number
-  cpc: number
-  difficulty: number
-  cluster?: string
-}
-
-export interface Job {
-  _id?: string
+export interface Plan {
   id: string
-  type: "research" | "plan" | "content"
-  status: "queued" | "running" | "completed" | "failed"
+  name: string
+  description?: string
+  keywords: string[]
+  targetDa: number
+  status: "draft" | "active" | "paused" | "completed"
   progress: number
-  result?: any
-  error?: string
-  title: string
+  estimatedCompletion?: string
   createdAt: string
   updatedAt: string
+  metrics: {
+    totalKeywords: number
+    difficulty: number
+    estimatedTraffic: number
+    budget: number
+  }
 }

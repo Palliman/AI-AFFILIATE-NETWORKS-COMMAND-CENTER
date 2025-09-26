@@ -38,6 +38,7 @@ import LoginForm from "@/components/login-form"
 import { useAuth } from "@/components/auth-provider"
 import AffiliateFinder from "@/components/affiliate-finder"
 import ArbitrageResearchLab from "@/components/arbitrage-research-lab"
+import MissionLog from "@/components/mission-log" // Added import
 
 // Types (can be moved to a separate types.ts file for better organization)
 export interface NewsItem {
@@ -1340,20 +1341,40 @@ function CommandCenter() {
   )
 }
 
-export default function Page() {
+// Replaced the original export default with the new Dashboard component
+export default function Dashboard() {
   const { isAuthenticated, isLoading } = useAuth()
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-slate-400">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center matrix-bg">
+        <div className="text-matrix text-lg">Initializing RankForge Engine...</div>
       </div>
     )
   }
 
   if (!isAuthenticated) {
-    return <LoginForm />
+    return (
+      <>
+        <MatrixRain />
+        <LoginForm />
+      </>
+    )
   }
 
-  return <CommandCenter />
+  return (
+    <>
+      <MatrixRain />
+      <div className="space-y-8">
+        {/* Main Research Lab */}
+        <ArbitrageResearchLab />
+
+        {/* Secondary Tools Grid */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <AffiliateFinder />
+          <MissionLog />
+        </div>
+      </div>
+    </>
+  )
 }

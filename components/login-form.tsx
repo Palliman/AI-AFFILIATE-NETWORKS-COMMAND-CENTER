@@ -3,11 +3,9 @@
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { User, Lock, Eye, EyeOff, Shield, Globe, Activity, Zap, Clock } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { useAuth } from "./auth-provider"
 
 // Animated Globe Component
@@ -246,234 +244,78 @@ const TelemetryPanel: React.FC<{ side: "left" | "right" }> = ({ side }) => {
 export default function CommandCenterLogin() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [isSuccess, setIsSuccess] = useState(false)
-  const [cardVisible, setCardVisible] = useState(false)
-  const [shake, setShake] = useState(false)
-  const { login } = useAuth()
-
-  useEffect(() => {
-    // Card entrance animation
-    setTimeout(() => setCardVisible(true), 100)
-  }, [])
+  const [error, setError] = useState("")
+  const { login, initAuth } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError("")
     setIsLoading(true)
-
-    // Simulate loading delay
-    await new Promise((resolve) => setTimeout(resolve, 1200))
+    setError("")
 
     const success = await login(username, password)
     if (!success) {
-      setError("Invalid credentials. Try: Palliman, Signull, or 1llw1ll")
-      setPassword("")
-      setIsLoading(false)
-      setShake(true)
-      setTimeout(() => setShake(false), 500)
-    } else {
-      setIsSuccess(true)
-      setTimeout(() => {
-        setIsLoading(false)
-      }, 1000)
+      setError("Invalid credentials")
     }
+    setIsLoading(false)
+  }
+
+  const handleQuickLogin = async () => {
+    setIsLoading(true)
+    await initAuth()
+    setIsLoading(false)
   }
 
   return (
-    <div className="min-h-screen relative bg-[#07090B] flex items-center justify-center p-4 overflow-hidden font-['Inter']">
-      {/* Background Layers */}
-      <div id="bg-globe" className="absolute inset-0 z-0">
-        <AnimatedGlobe />
-      </div>
-
-      <div id="bg-rain" className="absolute inset-0 z-10">
-        <CodeRain />
-      </div>
-
-      <div
-        id="bg-fog"
-        className="absolute inset-0 z-20 backdrop-blur-xl"
-        style={{
-          background: `
-            radial-gradient(circle at 50% 50%, rgba(42, 240, 110, 0.03) 0%, transparent 50%),
-            radial-gradient(circle at 20% 80%, rgba(12, 46, 26, 0.1) 0%, transparent 50%),
-            radial-gradient(circle at 80% 20%, rgba(12, 46, 26, 0.1) 0%, transparent 50%),
-            linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%)
-          `,
-        }}
-      />
-
-      {/* Telemetry Panels */}
-      <TelemetryPanel side="left" />
-      <TelemetryPanel side="right" />
-
-      {/* Main Login Card */}
-      <div className="relative z-30 w-full max-w-sm sm:max-w-md">
-        <Card
-          className={`
-            backdrop-blur-2xl bg-white/5 border border-white/10 rounded-2xl
-            shadow-[0_0_80px_-30px_#2AF06E] transition-all duration-1000 ease-out
-            ${cardVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}
-            ${shake ? "animate-pulse" : ""}
-            hover:shadow-[0_0_100px_-20px_#2AF06E] hover:-translate-y-1
-          `}
-          style={{
-            boxShadow: "0 0 80px -30px #2AF06E, inset 0 1px 0 rgba(255, 255, 255, 0.1)",
-          }}
-        >
-          <CardHeader className="text-center space-y-4 px-6 pt-8 sm:px-8">
-            {/* Security Badge */}
-            <div className="flex justify-center">
-              <Badge
-                className="bg-[#3B82F6]/20 text-[#3B82F6] border-[#3B82F6]/30 px-3 py-1 text-xs font-medium tracking-tight animate-pulse"
-                variant="outline"
-              >
-                <Shield className="w-3 h-3 mr-2" />🔒 MongoDB Authentication
-              </Badge>
+    <div className="min-h-screen flex items-center justify-center matrix-bg">
+      <Card className="w-full max-w-md bg-panel border-white/10">
+        <CardHeader>
+          <CardTitle className="text-center text-white">
+            AI Affiliate Networks
+            <div className="text-sm text-matrix font-normal mt-1">RankForge Engine v0.3</div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Input
+                type="text"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="bg-gunmetal border-white/10 text-white placeholder:text-zincsoft"
+                required
+              />
             </div>
-
-            {/* Title */}
-            <div className="space-y-2">
-              <CardTitle className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-                AI Affiliate Networks
-              </CardTitle>
-              <CardDescription className="text-[#CBD5E1] text-base tracking-tight">
-                Command Center Access
-              </CardDescription>
+            <div>
+              <Input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="bg-gunmetal border-white/10 text-white placeholder:text-zincsoft"
+                required
+              />
             </div>
-          </CardHeader>
+            {error && <div className="text-ember text-sm text-center">{error}</div>}
+            <Button type="submit" className="w-full bg-matrix hover:bg-matrix/80 text-black" disabled={isLoading}>
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Login"}
+            </Button>
+          </form>
 
-          <CardContent className="px-6 pb-8 sm:px-8">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Username Field */}
-              <div className="space-y-2">
-                <Label htmlFor="username" className="text-[#CBD5E1] text-sm font-medium">
-                  Username
-                </Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#CBD5E1]/60" />
-                  <Input
-                    id="username"
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Enter username"
-                    className="
-                      pl-10 h-12 bg-white/5 border-white/20 text-white placeholder:text-[#CBD5E1]/50
-                      focus:border-[#2AF06E] focus:ring-2 focus:ring-[#2AF06E]/60 focus:shadow-[0_0_20px_-5px_#2AF06E]
-                      transition-all duration-200
-                    "
-                    required
-                    disabled={isLoading}
-                    aria-invalid={error ? "true" : "false"}
-                    aria-describedby={error ? "error-message" : undefined}
-                  />
-                </div>
-              </div>
-
-              {/* Password Field */}
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-[#CBD5E1] text-sm font-medium">
-                  Password
-                </Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#CBD5E1]/60" />
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter password"
-                    className="
-                      pl-10 pr-10 h-12 bg-white/5 border-white/20 text-white placeholder:text-[#CBD5E1]/50
-                      focus:border-[#2AF06E] focus:ring-2 focus:ring-[#2AF06E]/60 focus:shadow-[0_0_20px_-5px_#2AF06E]
-                      transition-all duration-200
-                    "
-                    required
-                    disabled={isLoading}
-                    aria-invalid={error ? "true" : "false"}
-                    aria-describedby={error ? "error-message" : undefined}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#CBD5E1]/60 hover:text-[#CBD5E1] transition-colors"
-                    disabled={isLoading}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Error Message */}
-              {error && (
-                <div
-                  id="error-message"
-                  className="flex items-center gap-2 p-3 bg-red-500/20 border border-red-400/50 rounded-lg"
-                  role="alert"
-                >
-                  <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
-                  <span className="text-red-300 text-sm">{error}</span>
-                </div>
-              )}
-
-              {/* Submit Button */}
-              <Button
-                type="submit"
-                className="
-                  w-full h-12 bg-[#2AF06E] hover:bg-[#22d763] text-black font-semibold text-base
-                  transition-all duration-200 active:scale-[0.98]
-                  hover:shadow-[0_0_30px_-5px_#2AF06E] hover:animate-pulse
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                "
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  isSuccess ? (
-                    <>
-                      <Zap className="w-4 h-4 mr-2 animate-spin" />
-                      Granting Access...
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-4 h-4 mr-2 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                      Authenticating...
-                    </>
-                  )
-                ) : (
-                  "Access Command Center"
-                )}
-              </Button>
-            </form>
-
-            {/* Available Users Hint */}
-            <div className="mt-6 text-center">
-              <p className="text-[#CBD5E1]/60 text-xs tracking-tight">Available users: Palliman, Signull, 1llw1ll</p>
-              <p className="text-[#CBD5E1]/40 text-xs tracking-tight mt-1">Password: Megaman$ (for all users)</p>
-            </div>
-
-            {/* Status Ticker */}
-            <div className="mt-6 p-3 bg-white/5 rounded-lg border border-white/10">
-              <div className="flex items-center justify-center space-x-4 text-xs text-[#CBD5E1]/80 font-mono">
-                <span className="flex items-center">
-                  <Clock className="w-3 h-3 mr-1" />
-                  MongoDB synced
-                </span>
-                <span className="hidden sm:flex items-center">
-                  <Globe className="w-3 h-3 mr-1" />3 users active
-                </span>
-                <span className="flex items-center">
-                  <Activity className="w-3 h-3 mr-1" />
-                  JWT secured
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          <div className="text-center">
+            <div className="text-xs text-zincsoft mb-2">Development Mode</div>
+            <Button
+              onClick={handleQuickLogin}
+              variant="outline"
+              className="w-full border-white/10 text-zincsoft hover:text-white bg-transparent"
+              disabled={isLoading}
+            >
+              Quick Login (admin/admin)
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

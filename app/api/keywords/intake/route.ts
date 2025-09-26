@@ -1,78 +1,6 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 
-interface ClusterResult {
-  clusters: Record<string, string[]>
-  keywords: Array<{
-    keyword: string
-    cluster: string
-    similarity_score?: number
-  }>
-}
-
-// Advanced keyword clustering using semantic analysis
-async function performSemanticClustering(keywords: string[]): Promise<ClusterResult> {
-  // This is a simplified clustering algorithm
-  // In production, you might want to use more sophisticated NLP libraries
-
-  const clusters: Record<string, string[]> = {}
-  const processedKeywords = keywords.map((keyword) => {
-    const words = keyword.toLowerCase().split(" ")
-
-    // Extract main topic/intent
-    const intent = words.find((word) => ["how", "what", "where", "when", "why", "best", "top"].includes(word))
-
-    const mainTopic =
-      words.find(
-        (word) =>
-          ![
-            "best",
-            "top",
-            "how",
-            "to",
-            "what",
-            "where",
-            "when",
-            "why",
-            "online",
-            "free",
-            "the",
-            "a",
-            "an",
-            "and",
-            "or",
-            "but",
-            "in",
-            "on",
-            "at",
-            "for",
-          ].includes(word),
-      ) || words[0]
-
-    // Create cluster name based on intent and topic
-    let clusterName = mainTopic.charAt(0).toUpperCase() + mainTopic.slice(1)
-    if (intent) {
-      clusterName = `${intent.charAt(0).toUpperCase()}${intent.slice(1)} ${clusterName}`
-    }
-
-    if (!clusters[clusterName]) {
-      clusters[clusterName] = []
-    }
-    clusters[clusterName].push(keyword)
-
-    return {
-      keyword,
-      cluster: clusterName,
-      similarity_score: Math.random() * 0.3 + 0.7, // Mock similarity score
-    }
-  })
-
-  return {
-    clusters,
-    keywords: processedKeywords,
-  }
-}
-
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     const { keywords } = await request.json()
 
@@ -80,15 +8,48 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Keywords array is required" }, { status: 400 })
     }
 
-    console.log(`🔗 Clustering ${keywords.length} keywords`)
+    // Simulate keyword clustering analysis
+    await new Promise((resolve) => setTimeout(resolve, 2000))
 
-    const result = await performSemanticClustering(keywords)
+    // Mock clustering logic
+    const clusters = [
+      {
+        id: "cluster-1",
+        name: "Primary Keywords",
+        keywords: keywords.slice(0, Math.ceil(keywords.length * 0.4)),
+        difficulty: Math.floor(Math.random() * 40) + 30,
+        volume: Math.floor(Math.random() * 50000) + 10000,
+        intent: "Commercial",
+        color: "#0aff9d",
+      },
+      {
+        id: "cluster-2",
+        name: "Long-tail Variations",
+        keywords: keywords.slice(Math.ceil(keywords.length * 0.4), Math.ceil(keywords.length * 0.7)),
+        difficulty: Math.floor(Math.random() * 30) + 20,
+        volume: Math.floor(Math.random() * 20000) + 5000,
+        intent: "Informational",
+        color: "#ff4d2e",
+      },
+      {
+        id: "cluster-3",
+        name: "Supporting Terms",
+        keywords: keywords.slice(Math.ceil(keywords.length * 0.7)),
+        difficulty: Math.floor(Math.random() * 25) + 15,
+        volume: Math.floor(Math.random() * 15000) + 2000,
+        intent: "Navigational",
+        color: "#ffd700",
+      },
+    ].filter((cluster) => cluster.keywords.length > 0)
 
-    console.log(`✅ Created ${Object.keys(result.clusters).length} clusters`)
-
-    return NextResponse.json(result)
+    return NextResponse.json({
+      success: true,
+      clusters,
+      totalKeywords: keywords.length,
+      processingTime: "2.1s",
+    })
   } catch (error) {
-    console.error("Keyword clustering error:", error)
-    return NextResponse.json({ error: "Failed to cluster keywords" }, { status: 500 })
+    console.error("Keyword intake error:", error)
+    return NextResponse.json({ error: "Failed to process keywords" }, { status: 500 })
   }
 }

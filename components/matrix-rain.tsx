@@ -1,9 +1,8 @@
 "use client"
 
-import type React from "react"
 import { useEffect, useRef } from "react"
 
-const MatrixRain: React.FC = () => {
+export default function MatrixRain() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -13,70 +12,63 @@ const MatrixRain: React.FC = () => {
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    let width = window.innerWidth
-    let height = window.innerHeight
-    canvas.width = width
-    canvas.height = height
+    // Set canvas size
+    const resizeCanvas = () => {
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+    }
+    resizeCanvas()
+    window.addEventListener("resize", resizeCanvas)
 
-    const columns = Math.floor(width / 20)
+    // Matrix characters
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*()_+-=[]{}|;:,.<>?"
+    const fontSize = 14
+    const columns = Math.floor(canvas.width / fontSize)
     const drops: number[] = []
+
+    // Initialize drops
     for (let i = 0; i < columns; i++) {
-      drops[i] = 1
+      drops[i] = Math.random() * canvas.height
     }
 
-    const characters =
-      "アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    const charArray = characters.split("")
+    const draw = () => {
+      // Semi-transparent black background for trail effect
+      ctx.fillStyle = "rgba(0, 0, 0, 0.05)"
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-    let animationFrameId: number
-
-    function draw() {
-      ctx.fillStyle = "rgba(0, 0, 0, 0.04)"
-      ctx.fillRect(0, 0, width, height)
-
-      ctx.fillStyle = "#0F0" // Green text
-      ctx.font = "15px monospace"
+      // Matrix green text
+      ctx.fillStyle = "#0aff9d"
+      ctx.font = `${fontSize}px monospace`
 
       for (let i = 0; i < drops.length; i++) {
-        const text = charArray[Math.floor(Math.random() * charArray.length)]
-        ctx.fillText(text, i * 20, drops[i] * 20)
+        const char = chars[Math.floor(Math.random() * chars.length)]
+        const x = i * fontSize
+        const y = drops[i]
 
-        if (drops[i] * 20 > height && Math.random() > 0.975) {
+        ctx.fillText(char, x, y)
+
+        // Reset drop to top randomly
+        if (y > canvas.height && Math.random() > 0.975) {
           drops[i] = 0
         }
-        drops[i]++
+
+        drops[i] += fontSize
       }
     }
 
-    const render = () => {
-      draw()
-      animationFrameId = requestAnimationFrame(render)
-    }
-
-    render()
-
-    const handleResize = () => {
-      width = window.innerWidth
-      height = window.innerHeight
-      canvas.width = width
-      canvas.height = height
-      // Recalculate columns and reset drops if needed
-      const newColumns = Math.floor(width / 20)
-      drops.length = 0 // Clear existing drops
-      for (let i = 0; i < newColumns; i++) {
-        drops[i] = Math.floor(Math.random() * (height / 20))
-      }
-    }
-
-    window.addEventListener("resize", handleResize)
+    const interval = setInterval(draw, 50)
 
     return () => {
-      cancelAnimationFrame(animationFrameId)
-      window.removeEventListener("resize", handleResize)
+      clearInterval(interval)
+      window.removeEventListener("resize", resizeCanvas)
     }
   }, [])
 
-  return <canvas ref={canvasRef} style={{ position: "fixed", top: 0, left: 0, zIndex: -1, opacity: 0.3 }} />
+  return (
+    <canvas
+      ref={canvasRef}
+      className="fixed inset-0 pointer-events-none opacity-10 z-0"
+      style={{ background: "transparent" }}
+    />
+  )
 }
-
-export default MatrixRain
