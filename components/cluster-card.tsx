@@ -1,27 +1,24 @@
 "use client"
 
-import { useState } from "react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { RefreshCw } from "lucide-react"
 import type { Cluster } from "@/lib/api"
-import { createAutoPlan } from "@/lib/api"
-import { RefreshCw, Target } from "lucide-react"
-import { toast } from "sonner"
 
 interface ClusterCardProps {
   cluster: Cluster
-  projectId: number
-  domain: string
   planStats?: {
     da_target: number
-    links: number
-    articles: number
+    links_needed: number
+    articles_needed: number
     eta_weeks: number
   }
-  onPlanRecalculated?: () => void
+  onRecalculate?: () => void
+  isRecalculating?: boolean
 }
 
-export default function ClusterCard({ cluster, projectId, domain, planStats, onPlanRecalculated }: ClusterCardProps) {
-  const [isRecalculating, setIsRecalculating] = useState(false)
-
+export function ClusterCard({ cluster, planStats, onRecalculate, isRecalculating = false }: ClusterCardProps) {
   const getIntentColor = (intent: string) => {
     switch (intent) {
       case "commercial":
@@ -36,97 +33,75 @@ export default function ClusterCard({ cluster, projectId, domain, planStats, onP
   }
 
   const getDifficultyColor = (daTarget: number) => {
-    if (daTarget >= 70) return "text-ember" // Brutal
-    if (daTarget >= 50) return "text-yellow-400" // Moderate
-    return "text-matrix" // Easy
-  }
-
-  const handleRecalculatePlan = async () => {
-    setIsRecalculating(true)
-    try {
-      await createAutoPlan({
-        project_id: projectId,
-        keyword: cluster.primary_keyword,
-        domain,
-      })
-      toast.success("Plan recalculated successfully")
-      onPlanRecalculated?.()
-    } catch (error) {
-      toast.error("Failed to recalculate plan")
-      console.error("Plan recalculation error:", error)
-    } finally {
-      setIsRecalculating(false)
-    }
+    if (daTarget <= 30) return "text-matrix" // Easy - green
+    if (daTarget <= 50) return "text-yellow-400" // Medium - yellow
+    return "text-ember" // Hard - red
   }
 
   return (
-    <div className="card">
-      <div className="card-header flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Target className="w-4 h-4 text-matrix" />
-          <span className="font-medium text-white">{cluster.cluster}</span>
+    <Card className="card">
+      <CardHeader className="card-header flex-row items-center justify-between">
+        <div className="flex items-center gap-3">
+          <CardTitle className="text-white text-sm font-medium">{cluster.cluster}</CardTitle>
+          <Badge className={`badge ${getIntentColor(cluster.intent)}`}>{cluster.intent}</Badge>
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`badge ${getIntentColor(cluster.intent)}`}>{cluster.intent}</span>
-          <button
-            onClick={handleRecalculatePlan}
+        {onRecalculate && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onRecalculate}
             disabled={isRecalculating}
-            className="p-1 hover:bg-white/10 rounded transition-colors"
-            title="Recalculate Plan"
+            className="h-8 w-8 p-0 hover:bg-white/10"
           >
-            <RefreshCw className={`w-3 h-3 text-zincsoft ${isRecalculating ? "animate-spin" : ""}`} />
-          </button>
-        </div>
-      </div>
+            <RefreshCw className={`h-3 w-3 ${isRecalculating ? "animate-spin" : ""}`} />
+          </Button>
+        )}
+      </CardHeader>
 
-      <div className="card-body space-y-4">
+      <CardContent className="card-body space-y-4">
+        {/* Primary Keyword */}
         <div>
-          <div className="text-sm text-zincsoft mb-1">Primary Keyword</div>
-          <div className="font-medium text-matrix">{cluster.primary_keyword}</div>
+          <p className="text-xs text-zincsoft/70 mb-1">Primary Keyword</p>
+          <p className="text-sm font-medium text-white">{cluster.primary_keyword}</p>
         </div>
 
+        {/* Supporting Keywords */}
         <div>
-          <div className="text-sm text-zincsoft mb-2">Supporting Keywords</div>
+          <p className="text-xs text-zincsoft/70 mb-2">Supporting Keywords</p>
           <div className="flex flex-wrap gap-1">
-            {cluster.keywords.slice(0, 6).map((keyword, idx) => (
-              <span key={idx} className="text-xs px-2 py-1 bg-white/5 rounded border border-white/10 text-zincsoft">
+            {cluster.keywords.slice(0, 6).map((keyword, index) => (
+              <span key={index} className="text-xs px-2 py-1 bg-white/5 rounded border border-white/10 text-zincsoft">
                 {keyword}
               </span>
             ))}
             {cluster.keywords.length > 6 && (
-              <span className="text-xs px-2 py-1 bg-white/5 rounded border border-white/10 text-zincsoft/60">
-                +{cluster.keywords.length - 6} more
-              </span>
+              <span className="text-xs px-2 py-1 text-zincsoft/60">+{cluster.keywords.length - 6} more</span>
             )}
           </div>
         </div>
 
+        {/* Plan Stats */}
         {planStats && (
-          <div className="border-t border-white/5 pt-4">
-            <div className="text-sm text-zincsoft mb-2">Plan Stats</div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <span className="text-zincsoft/80">DA Target:</span>
-                <span className={`ml-2 font-medium ${getDifficultyColor(planStats.da_target)}`}>
-                  {planStats.da_target}
-                </span>
-              </div>
-              <div>
-                <span className="text-zincsoft/80">Links:</span>
-                <span className="ml-2 font-medium text-white">{planStats.links}</span>
-              </div>
-              <div>
-                <span className="text-zincsoft/80">Articles:</span>
-                <span className="ml-2 font-medium text-white">{planStats.articles}</span>
-              </div>
-              <div>
-                <span className="text-zincsoft/80">ETA:</span>
-                <span className="ml-2 font-medium text-matrix">{planStats.eta_weeks.toFixed(1)}w</span>
-              </div>
+          <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/5">
+            <div className="text-center">
+              <p className="text-xs text-zincsoft/70">DA Target</p>
+              <p className={`text-lg font-bold ${getDifficultyColor(planStats.da_target)}`}>{planStats.da_target}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-zincsoft/70">Links</p>
+              <p className="text-lg font-bold text-white">{planStats.links_needed}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-zincsoft/70">Articles</p>
+              <p className="text-lg font-bold text-white">{planStats.articles_needed}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-zincsoft/70">ETA</p>
+              <p className="text-lg font-bold text-white">{planStats.eta_weeks}w</p>
             </div>
           </div>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }

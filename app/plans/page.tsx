@@ -1,179 +1,168 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getPlans, getProjects, type Plan, type Project } from "@/lib/api"
-import { Filter, Calendar, Target, Link, FileText, Clock } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { RefreshCw } from "lucide-react"
+import { api, type Plan } from "@/lib/api"
 import { toast } from "sonner"
 
 export default function PlansPage() {
   const [plans, setPlans] = useState<Plan[]>([])
-  const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [filterProjectId, setFilterProjectId] = useState<number | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [projectIdFilter, setProjectIdFilter] = useState("")
 
   useEffect(() => {
-    loadData()
+    loadPlans()
   }, [])
 
-  const loadData = async () => {
+  const loadPlans = async (projectId?: number) => {
     try {
-      const [plansData, projectsData] = await Promise.all([getPlans(), getProjects()])
-      setPlans(plansData)
-      setProjects(projectsData)
+      setIsRefreshing(true)
+      const data = await api.getPlans(projectId)
+      setPlans(data)
     } catch (error) {
-      toast.error("Failed to load data")
-      console.error("Load data error:", error)
+      toast.error("Failed to load plans")
+      console.error("Error loading plans:", error)
     } finally {
       setIsLoading(false)
+      setIsRefreshing(false)
     }
   }
 
-  const handleRefresh = async () => {
-    setIsLoading(true)
-    try {
-      const plansData = await getPlans(filterProjectId || undefined)
-      setPlans(plansData)
-      toast.success("Plans refreshed")
-    } catch (error) {
-      toast.error("Failed to refresh plans")
-      console.error("Refresh error:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const getProjectDomain = (projectId: number) => {
-    const project = projects.find((p) => p.id === projectId)
-    return project?.domain || `Project #${projectId}`
+  const handleRefresh = () => {
+    const projectId = projectIdFilter ? Number.parseInt(projectIdFilter) : undefined
+    loadPlans(projectId)
   }
 
   const getDifficultyColor = (daTarget: number) => {
-    if (daTarget >= 70) return "text-ember"
-    if (daTarget >= 50) return "text-yellow-400"
-    return "text-matrix"
+    if (daTarget <= 30) return "text-matrix" // Easy - green
+    if (daTarget <= 50) return "text-yellow-400" // Medium - yellow
+    return "text-ember" // Hard - red
   }
 
-  const filteredPlans = filterProjectId ? plans.filter((plan) => plan.project_id === filterProjectId) : plans
+  const getDifficultyBadge = (daTarget: number) => {
+    if (daTarget <= 30) return { text: "Easy", class: "bg-matrix/20 text-matrix border-matrix/30" }
+    if (daTarget <= 50) return { text: "Medium", class: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" }
+    return { text: "Hard", class: "bg-ember/20 text-ember border-ember/30" }
+  }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">SEO Plans</h1>
-          <p className="text-zincsoft">Generated plans with DA targets and execution timelines</p>
-        </div>
-      </div>
-
-      {/* Filter Row */}
-      <div className="card">
-        <div className="card-body">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-matrix" />
-              <span className="text-sm text-zincsoft">Filter by project:</span>
-            </div>
-
-            <select
-              value={filterProjectId || ""}
-              onChange={(e) => setFilterProjectId(e.target.value ? Number(e.target.value) : null)}
-              className="input w-64"
-            >
-              <option value="">All projects</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.domain} (#{project.id})
-                </option>
-              ))}
-            </select>
-
-            <button onClick={handleRefresh} disabled={isLoading} className="btn-secondary">
-              {isLoading ? (
-                <div className="w-4 h-4 border-2 border-matrix/30 border-t-matrix rounded-full animate-spin" />
-              ) : (
-                "Refresh"
-              )}
-            </button>
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gunmetal matrix-bg">
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-matrix mx-auto"></div>
+            <p className="text-zincsoft mt-2">Loading plans...</p>
           </div>
         </div>
       </div>
+    )
+  }
 
-      {/* Plans Table */}
-      <div className="card">
-        <div className="card-header">
-          <FileText className="w-4 h-4 text-matrix mr-2" />
-          Plans ({filteredPlans.length})
-        </div>
-        <div className="card-body">
-          {isLoading ? (
-            <div className="text-center py-8">
-              <div className="w-6 h-6 border-2 border-matrix/30 border-t-matrix rounded-full animate-spin mx-auto mb-2" />
-              <p className="text-zincsoft">Loading plans...</p>
-            </div>
-          ) : filteredPlans.length === 0 ? (
-            <div className="text-center py-8">
-              <FileText className="w-12 h-12 text-zincsoft/30 mx-auto mb-4" />
-              <p className="text-zincsoft">No plans found</p>
-              <p className="text-zincsoft/60 text-sm">
-                {filterProjectId ? "Try selecting a different project" : "Run keyword intake to generate plans"}
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-white/5">
-                    <th className="text-left py-3 px-4 text-sm text-zincsoft font-medium">ID</th>
-                    <th className="text-left py-3 px-4 text-sm text-zincsoft font-medium">Project</th>
-                    <th className="text-left py-3 px-4 text-sm text-zincsoft font-medium">DA Target</th>
-                    <th className="text-left py-3 px-4 text-sm text-zincsoft font-medium">Links</th>
-                    <th className="text-left py-3 px-4 text-sm text-zincsoft font-medium">Articles</th>
-                    <th className="text-left py-3 px-4 text-sm text-zincsoft font-medium">ETA (weeks)</th>
-                    <th className="text-left py-3 px-4 text-sm text-zincsoft font-medium">Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPlans.map((plan) => (
-                    <tr key={plan.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                      <td className="py-3 px-4 text-sm font-mono text-matrix">{plan.id}</td>
-                      <td className="py-3 px-4 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Target className="w-3 h-3 text-zincsoft" />
-                          <span className="font-medium text-white">{getProjectDomain(plan.project_id)}</span>
+  return (
+    <div className="min-h-screen bg-gunmetal matrix-bg">
+      <div className="container mx-auto px-4 py-8">
+        <div className="space-y-8">
+          {/* Header */}
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">SEO Plans</h1>
+            <p className="text-zincsoft">View and manage your generated SEO plans</p>
+          </div>
+
+          {/* Filter Row */}
+          <Card className="card">
+            <CardContent className="card-body">
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <Label htmlFor="project-filter" className="text-zincsoft">
+                    Filter by Project ID (optional)
+                  </Label>
+                  <Input
+                    id="project-filter"
+                    type="number"
+                    value={projectIdFilter}
+                    onChange={(e) => setProjectIdFilter(e.target.value)}
+                    placeholder="Enter project ID"
+                    className="input"
+                  />
+                </div>
+                <Button onClick={handleRefresh} disabled={isRefreshing} className="btn mt-6">
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Plans Table */}
+          <Card className="card">
+            <CardHeader className="card-header">
+              <CardTitle className="text-white">Generated Plans ({plans.length})</CardTitle>
+            </CardHeader>
+            <CardContent className="card-body">
+              {plans.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-zincsoft">No plans found.</p>
+                  <p className="text-zincsoft/60 text-sm mt-1">
+                    {projectIdFilter
+                      ? "Try a different project ID or clear the filter."
+                      : "Create some projects and run keyword intake to generate plans."}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {plans.map((plan) => {
+                    const difficulty = getDifficultyBadge(plan.da_target)
+                    return (
+                      <div key={plan.id} className="p-4 bg-panelAlt rounded-lg border border-white/10">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <h3 className="font-medium text-white mb-1">{plan.keyword}</h3>
+                            <p className="text-sm text-zincsoft">{plan.domain}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge className="badge">ID: {plan.id}</Badge>
+                            <Badge className="badge">Project: {plan.project_id}</Badge>
+                            <Badge className={`badge ${difficulty.class}`}>{difficulty.text}</Badge>
+                          </div>
                         </div>
-                      </td>
-                      <td className="py-3 px-4 text-sm">
-                        <span className={`font-medium ${getDifficultyColor(plan.da_target)}`}>{plan.da_target}</span>
-                      </td>
-                      <td className="py-3 px-4 text-sm">
-                        <div className="flex items-center gap-1">
-                          <Link className="w-3 h-3 text-zincsoft" />
-                          <span className="text-white">{plan.links}</span>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="text-center p-3 bg-panel rounded border border-white/5">
+                            <p className="text-xs text-zincsoft/70 mb-1">DA Target</p>
+                            <p className={`text-lg font-bold ${getDifficultyColor(plan.da_target)}`}>
+                              {plan.da_target}
+                            </p>
+                          </div>
+                          <div className="text-center p-3 bg-panel rounded border border-white/5">
+                            <p className="text-xs text-zincsoft/70 mb-1">Links Needed</p>
+                            <p className="text-lg font-bold text-white">{plan.links_needed}</p>
+                          </div>
+                          <div className="text-center p-3 bg-panel rounded border border-white/5">
+                            <p className="text-xs text-zincsoft/70 mb-1">Articles</p>
+                            <p className="text-lg font-bold text-white">{plan.articles_needed}</p>
+                          </div>
+                          <div className="text-center p-3 bg-panel rounded border border-white/5">
+                            <p className="text-xs text-zincsoft/70 mb-1">ETA (weeks)</p>
+                            <p className="text-lg font-bold text-white">{plan.eta_weeks.toFixed(1)}</p>
+                          </div>
                         </div>
-                      </td>
-                      <td className="py-3 px-4 text-sm">
-                        <div className="flex items-center gap-1">
-                          <FileText className="w-3 h-3 text-zincsoft" />
-                          <span className="text-white">{plan.articles}</span>
+
+                        <div className="mt-3 text-xs text-zincsoft/60">
+                          Created: {new Date(plan.created_at).toLocaleString()}
                         </div>
-                      </td>
-                      <td className="py-3 px-4 text-sm">
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-matrix" />
-                          <span className="text-matrix font-medium">{plan.eta_weeks.toFixed(1)}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-zincsoft">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {new Date(plan.created_at).toLocaleDateString()}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

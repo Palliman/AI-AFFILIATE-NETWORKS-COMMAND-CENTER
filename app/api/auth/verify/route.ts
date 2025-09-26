@@ -4,6 +4,9 @@ import { getUserByUsername } from "@/lib/auth"
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production"
 
+// Force dynamic rendering for this route
+export const dynamic = "force-dynamic"
+
 export async function GET(request: NextRequest) {
   try {
     const token = request.cookies.get("auth-token")?.value

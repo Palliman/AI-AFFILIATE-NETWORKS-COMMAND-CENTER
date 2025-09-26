@@ -3,26 +3,27 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { runKeywordIntake, getProjects, type Project, type KeywordIntakeResponse } from "@/lib/api"
-import { Upload, Play, FileText, Zap, Target } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
+import { Upload, Play, Download, Camera } from "lucide-react"
+import { ClusterCard } from "@/components/cluster-card"
+import { MissionLog, type LogEntry } from "@/components/mission-log"
+import { api, type Project, type KeywordIntakeResponse } from "@/lib/api"
 import { toast } from "sonner"
-import ClusterCard from "@/components/cluster-card"
-import MissionLog from "@/components/mission-log"
 
 export default function IntakePage() {
   const [projects, setProjects] = useState<Project[]>([])
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
-  const [domain, setDomain] = useState("")
-  const [keywords, setKeywords] = useState("")
-  const [isProcessing, setIsProcessing] = useState(false)
   const [results, setResults] = useState<KeywordIntakeResponse | null>(null)
-
-  const [options, setOptions] = useState({
-    num_competitors: 10,
-    avg_link_strength: 0.25,
-    kd_bucket: 40,
-    posts_per_week: 3,
-    links_per_month: 6,
+  const [logEntries, setLogEntries] = useState<LogEntry[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [formData, setFormData] = useState({
+    project_id: "",
+    domain: "",
+    keywords: "",
   })
 
   useEffect(() => {
@@ -31,76 +32,92 @@ export default function IntakePage() {
 
   const loadProjects = async () => {
     try {
-      const data = await getProjects()
+      const data = await api.getProjects()
       setProjects(data)
-      if (data.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(data[0].id)
-        setDomain(data[0].domain)
-      }
     } catch (error) {
-      toast.error("Failed to load projects")
-      console.error("Load projects error:", error)
+      console.error("Error loading projects:", error)
     }
   }
 
-  const parseKeywords = (input: string): string[] => {
-    return input
+  const addLogEntry = (message: string, type: LogEntry["type"] = "info") => {
+    const entry: LogEntry = {
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString(),
+      message,
+      type,
+    }
+    setLogEntries((prev) => [...prev, entry])
+  }
+
+  const parseKeywords = (text: string): string[] => {
+    return text
       .split(/[\n,;|\t]+/)
       .map((k) => k.trim())
       .filter((k) => k.length > 0)
       .filter((k, i, arr) => arr.indexOf(k) === i) // Remove duplicates
   }
 
-  const handleRunIntake = async () => {
-    if (!selectedProjectId || !domain.trim() || !keywords.trim()) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formData.project_id || !formData.domain || !formData.keywords) {
       toast.error("Please fill in all required fields")
       return
     }
 
-    const parsedKeywords = parseKeywords(keywords)
-    if (parsedKeywords.length === 0) {
+    const keywords = parseKeywords(formData.keywords)
+    if (keywords.length === 0) {
       toast.error("Please enter at least one keyword")
       return
     }
 
-    setIsProcessing(true)
-    setResults(null)
-
-    // Add to mission log
-    if ((window as any).addMissionLog) {
-      ;(window as any).addMissionLog(`Starting intake: ${parsedKeywords.length} keywords for ${domain}`, "info")
-    }
+    setIsLoading(true)
+    addLogEntry(`Starting intake for ${keywords.length} keywords...`)
 
     try {
-      const response = await runKeywordIntake({
-        project_id: selectedProjectId,
-        domain: domain.trim(),
-        keywords: parsedKeywords,
-        options,
+      const response = await api.processKeywords({
+        project_id: Number.parseInt(formData.project_id),
+        domain: formData.domain,
+        keywords,
+        options: {
+          num_competitors: 10,
+          avg_link_strength: 0.25,
+          kd_bucket: 40,
+          posts_per_week: 3,
+          links_per_month: 6,
+        },
       })
 
       setResults(response)
-      toast.success(`Intake complete: ${response.clusters.length} clusters, ${response.plans_created} plans created`)
+      addLogEntry(`✓ Processed ${response.clusters.length} clusters`, "success")
+      addLogEntry(`✓ Created ${response.plans_created} SEO plans`, "success")
 
-      // Add detailed logs
-      if ((window as any).addMissionLog) {
-        response.clusters.forEach((cluster, idx) => {
-          const planId = Object.values(response.details)[idx] || "N/A"
-          ;(window as any).addMissionLog(
-            `Cluster "${cluster.cluster}": ${cluster.keywords.length} keywords → Plan #${planId} created`,
-            "success",
-          )
-        })
-      }
+      // Log each cluster
+      response.clusters.forEach((cluster) => {
+        const planId = response.details[cluster.cluster]
+        addLogEntry(`Cluster "${cluster.cluster}": ${cluster.keywords.length} keywords → Plan #${planId} created`)
+      })
+
+      toast.success("Keyword intake completed successfully")
     } catch (error) {
-      toast.error("Intake failed")
-      console.error("Intake error:", error)
-
-      if ((window as any).addMissionLog) {
-        ;(window as any).addMissionLog(`Intake failed: ${error}`, "error")
-      }
+      addLogEntry(`✗ Intake failed: ${error instanceof Error ? error.message : "Unknown error"}`, "error")
+      toast.error("Failed to process keywords")
+      console.error("Error processing keywords:", error)
     } finally {
-      setIsProcessing(false)
+      setIsLoading(false)
+    }
+  }
+
+  const handleRecalculatePlan = async (cluster: string, primaryKeyword: string) => {
+    if (!formData.project_id || !formData.domain) return
+
+    try {
+      addLogEntry(`Recalculating plan for "${cluster}"...`)
+      await api.createPlan(Number.parseInt(formData.project_id), primaryKeyword, formData.domain)
+      addLogEntry(`✓ Plan recalculated for "${cluster}"`, "success")
+      toast.success("Plan recalculated successfully")
+    } catch (error) {
+      addLogEntry(`✗ Failed to recalculate plan for "${cluster}"`, "error")
+      toast.error("Failed to recalculate plan")
     }
   }
 
@@ -110,9 +127,11 @@ export default function IntakePage() {
 
     const reader = new FileReader()
     reader.onload = (e) => {
-      const content = e.target?.result as string
-      setKeywords(content)
-      toast.success("Keywords loaded from file")
+      const text = e.target?.result as string
+      const keywords = parseKeywords(text)
+      setFormData({ ...formData, keywords: keywords.join("\n") })
+      addLogEntry(`Loaded ${keywords.length} keywords from CSV`, "success")
+      toast.success(`Loaded ${keywords.length} keywords from file`)
     }
     reader.readAsText(file)
   }
@@ -136,189 +155,167 @@ export default function IntakePage() {
     a.click()
     URL.revokeObjectURL(url)
 
-    toast.success("Blueprint exported")
-
-    if ((window as any).addMissionLog) {
-      ;(window as any).addMissionLog(`Blueprint exported: ${results.clusters.length} clusters`, "success")
-    }
+    addLogEntry("✓ Blueprint exported successfully", "success")
+    toast.success("Blueprint exported successfully")
   }
 
   const handleSerpSnapshot = () => {
-    toast.info("SERP snapshot queued")
-
-    if ((window as any).addMissionLog) {
-      ;(window as any).addMissionLog("SERP snapshot queued for processing", "info")
-    }
+    addLogEntry("SERP snapshot queued...", "info")
+    toast.success("SERP snapshot queued")
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      {/* Left Panel - Research Parameters */}
-      <div className="lg:col-span-4 space-y-6">
-        <div className="card">
-          <div className="card-header">
-            <Target className="w-4 h-4 text-matrix mr-2" />
-            Research Parameters
+    <div className="min-h-screen bg-gunmetal matrix-bg">
+      <div className="container mx-auto px-4 py-8">
+        <div className="space-y-8">
+          {/* Header */}
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">Keyword Intake</h1>
+            <p className="text-zincsoft">Process keywords into semantic clusters and generate SEO plans</p>
           </div>
-          <div className="card-body space-y-4">
-            <div>
-              <label className="block text-sm text-zincsoft mb-2">Project</label>
-              <select
-                value={selectedProjectId || ""}
-                onChange={(e) => {
-                  const projectId = Number(e.target.value)
-                  setSelectedProjectId(projectId)
-                  const project = projects.find((p) => p.id === projectId)
-                  if (project) setDomain(project.domain)
-                }}
-                className="input"
-              >
-                <option value="">Select project...</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.domain} (#{project.id})
-                  </option>
-                ))}
-              </select>
-            </div>
 
-            <div>
-              <label className="block text-sm text-zincsoft mb-2">Domain</label>
-              <input
-                type="text"
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                placeholder="example.com"
-                className="input"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm text-zincsoft mb-2">Keywords</label>
-              <textarea
-                value={keywords}
-                onChange={(e) => setKeywords(e.target.value)}
-                placeholder="Enter keywords (one per line, or comma/semicolon separated)&#10;running shoes&#10;best running shoes&#10;marathon training"
-                rows={8}
-                className="input resize-none"
-              />
-              <div className="text-xs text-zincsoft/60 mt-1">{parseKeywords(keywords).length} unique keywords</div>
-            </div>
-
-            <button
-              onClick={handleRunIntake}
-              disabled={isProcessing || !selectedProjectId || !domain.trim() || !keywords.trim()}
-              className="btn w-full"
-            >
-              {isProcessing ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Processing Intake...
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4" />
-                  Run Intake
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Actions Panel */}
-        <div className="card">
-          <div className="card-header">
-            <Zap className="w-4 h-4 text-matrix mr-2" />
-            Actions
-          </div>
-          <div className="card-body space-y-3">
-            <div>
-              <label className="block text-sm text-zincsoft mb-2">Bulk Intake (CSV)</label>
-              <input type="file" accept=".csv,.txt" onChange={handleBulkUpload} className="input" />
-            </div>
-
-            <button onClick={handleExportBlueprint} disabled={!results} className="btn-secondary w-full">
-              <FileText className="w-4 h-4" />
-              Export Cluster → Blueprint
-            </button>
-
-            <button onClick={handleSerpSnapshot} className="btn-secondary w-full">
-              <Upload className="w-4 h-4" />
-              Run SERP Snapshot
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Center Panel - Live Research Results */}
-      <div className="lg:col-span-5 space-y-6">
-        <div className="card">
-          <div className="card-header">
-            <Target className="w-4 h-4 text-matrix mr-2" />
-            Live Research Results
-          </div>
-          <div className="card-body">
-            {!results ? (
-              <div className="text-center py-12">
-                <Target className="w-12 h-12 text-zincsoft/30 mx-auto mb-4" />
-                <p className="text-zincsoft">Ready for keyword intake</p>
-                <p className="text-zincsoft/60 text-sm">Configure parameters and run intake to see clusters</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-medium text-white">Cluster Results</h3>
-                  <div className="badge bg-matrix/20 text-matrix border-matrix/30">
-                    Plans created: {results.plans_created}
-                  </div>
-                </div>
-
-                <div className="grid gap-4">
-                  {results.clusters.map((cluster, idx) => {
-                    const planId = Object.values(results.details)[idx]
-                    return (
-                      <ClusterCard
-                        key={cluster.cluster}
-                        cluster={cluster}
-                        projectId={results.project_id}
-                        domain={results.domain}
-                        planStats={{
-                          da_target: 40 + Math.floor(Math.random() * 40), // Mock data
-                          links: 15 + Math.floor(Math.random() * 20),
-                          articles: 5 + Math.floor(Math.random() * 10),
-                          eta_weeks: 4 + Math.random() * 8,
-                        }}
-                        onPlanRecalculated={() => {
-                          if ((window as any).addMissionLog) {
-                            ;(window as any).addMissionLog(`Plan recalculated for "${cluster.cluster}"`, "success")
-                          }
-                        }}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left Panel - Research Parameters */}
+            <div className="space-y-6">
+              <Card className="card">
+                <CardHeader className="card-header">
+                  <CardTitle className="text-white">Research Parameters</CardTitle>
+                </CardHeader>
+                <CardContent className="card-body">
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <Label htmlFor="project_id" className="text-zincsoft">
+                        Project ID *
+                      </Label>
+                      <Input
+                        id="project_id"
+                        type="number"
+                        value={formData.project_id}
+                        onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
+                        placeholder="1"
+                        className="input"
+                        required
                       />
-                    )
-                  })}
-                </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="domain" className="text-zincsoft">
+                        Domain *
+                      </Label>
+                      <Input
+                        id="domain"
+                        value={formData.domain}
+                        onChange={(e) => setFormData({ ...formData, domain: e.target.value })}
+                        placeholder="yourdomain.com"
+                        className="input"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="keywords" className="text-zincsoft">
+                        Keywords (one per line) *
+                      </Label>
+                      <Textarea
+                        id="keywords"
+                        value={formData.keywords}
+                        onChange={(e) => setFormData({ ...formData, keywords: e.target.value })}
+                        placeholder="running shoes&#10;best running shoes&#10;nike running shoes"
+                        rows={8}
+                        className="input"
+                        required
+                      />
+                    </div>
+                    <Button type="submit" disabled={isLoading} className="btn w-full">
+                      <Play className="w-4 h-4 mr-2" />
+                      {isLoading ? "Processing..." : "Run Intake"}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
 
-                {/* Plans Created Summary */}
-                <div className="border-t border-white/5 pt-4">
-                  <h4 className="text-sm text-zincsoft mb-2">Plans Created</h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    {Object.entries(results.details).map(([cluster, planId]) => (
-                      <div key={cluster} className="text-xs bg-white/5 rounded px-2 py-1 border border-white/10">
-                        <span className="text-zincsoft">{cluster}</span>
-                        <span className="text-matrix ml-1">• Plan #{planId}</span>
+              {/* Actions Panel */}
+              <Card className="card">
+                <CardHeader className="card-header">
+                  <CardTitle className="text-white">Actions</CardTitle>
+                </CardHeader>
+                <CardContent className="card-body">
+                  <div className="space-y-3">
+                    <div>
+                      <Label htmlFor="csv-upload" className="text-zincsoft text-sm">
+                        Bulk Intake (CSV)
+                      </Label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Input
+                          id="csv-upload"
+                          type="file"
+                          accept=".csv,.txt"
+                          onChange={handleBulkUpload}
+                          className="input text-sm"
+                        />
+                        <Button variant="ghost" size="sm" className="btn-secondary">
+                          <Upload className="w-4 h-4" />
+                        </Button>
                       </div>
-                    ))}
+                    </div>
+                    <Button onClick={handleExportBlueprint} disabled={!results} className="btn-secondary w-full">
+                      <Download className="w-4 h-4 mr-2" />
+                      Export Cluster → Blueprint
+                    </Button>
+                    <Button onClick={handleSerpSnapshot} className="btn-secondary w-full">
+                      <Camera className="w-4 h-4 mr-2" />
+                      Run SERP Snapshot
+                    </Button>
                   </div>
-                </div>
-              </div>
-            )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Right Panel - Live Results */}
+            <div className="space-y-6">
+              {/* Results */}
+              <Card className="card">
+                <CardHeader className="card-header">
+                  <CardTitle className="text-white">Live Research Results</CardTitle>
+                </CardHeader>
+                <CardContent className="card-body">
+                  {results ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4 mb-4">
+                        <Badge className="badge bg-matrix/20 text-matrix border-matrix/30">
+                          Plans created: {results.plans_created}
+                        </Badge>
+                        <Badge className="badge">{results.clusters.length} clusters</Badge>
+                      </div>
+
+                      <div className="grid gap-4">
+                        {results.clusters.map((cluster) => (
+                          <ClusterCard
+                            key={cluster.cluster}
+                            cluster={cluster}
+                            planStats={{
+                              da_target: Math.floor(Math.random() * 60) + 20,
+                              links_needed: Math.floor(Math.random() * 20) + 5,
+                              articles_needed: Math.floor(Math.random() * 10) + 3,
+                              eta_weeks: Math.floor(Math.random() * 12) + 4,
+                            }}
+                            onRecalculate={() => handleRecalculatePlan(cluster.cluster, cluster.primary_keyword)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-zincsoft">No results yet.</p>
+                      <p className="text-zincsoft/60 text-sm mt-1">Run keyword intake to see clusters appear here.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Mission Log */}
+              <MissionLog entries={logEntries} isLoading={isLoading} />
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* Right Panel - Mission Log */}
-      <div className="lg:col-span-3">
-        <MissionLog isActive={isProcessing} />
       </div>
     </div>
   )

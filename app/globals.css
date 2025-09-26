@@ -2,14 +2,80 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --gunmetal: #0f1115;
+  --panel: #151821;
+  --panel-alt: #0c0f15;
+  --zinc-soft: #8a94a6;
+  --ember: #ff4d2e;
+  --matrix: #0aff9d;
+}
+
 @layer base {
-  :root {
-    --gunmetal: #0f1115;
-    --panel: #151821;
-    --panel-alt: #0c0f15;
-    --zincsoft: #8a94a6;
-    --ember: #ff4d2e;
-    --matrix: #0aff9d;
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-gunmetal text-white;
+    background-color: var(--gunmetal);
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-panel rounded-xl border border-white/5;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .card-header {
+    @apply px-4 py-3 border-b border-white/5 text-sm uppercase tracking-wide;
+    color: rgba(138, 148, 166, 0.9);
+  }
+
+  .card-body {
+    @apply p-4;
+  }
+
+  .btn {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-white;
+    background-color: rgba(255, 77, 46, 0.9);
+  }
+
+  .btn:hover {
+    background-color: var(--ember);
+  }
+
+  .btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 transition-colors text-white;
+    background-color: var(--panel-alt);
+  }
+
+  .btn-secondary:hover {
+    background-color: var(--panel);
+  }
+
+  .input {
+    @apply w-full border border-white/10 rounded-lg px-3 py-2 text-white placeholder:text-zinc-400 focus:ring-2 transition-colors;
+    background-color: var(--panel-alt);
+    --tw-ring-color: rgba(255, 77, 46, 0.4);
+  }
+
+  .input:focus {
+    border-color: rgba(255, 77, 46, 0.5);
+  }
+
+  .badge {
+    @apply text-xs px-2 py-0.5 rounded border border-white/10;
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .matrix-bg {
+    background-image: radial-gradient(transparent 60%, rgba(10, 255, 157, 0.06)),
+      linear-gradient(180deg, rgba(10, 255, 157, 0.05), rgba(10, 255, 157, 0.02));
   }
 }
 
@@ -27,7 +93,7 @@
   }
 
   .text-zincsoft {
-    color: var(--zincsoft);
+    color: var(--zinc-soft);
   }
 
   .text-ember {
@@ -47,46 +113,9 @@
   }
 }
 
-@layer components {
-  .card {
-    @apply bg-panel rounded-xl border border-white/5;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-  }
-
-  .card-header {
-    @apply px-4 py-3 border-b border-white/5 text-sm uppercase tracking-wide text-zincsoft/90 flex items-center;
-  }
-
-  .card-body {
-    @apply p-4;
-  }
-
-  .btn {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-ember/90 hover:bg-ember transition-colors text-white font-medium;
-  }
-
-  .btn-secondary {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-panelAlt hover:bg-panel border border-white/10 text-white transition-colors;
-  }
-
-  .input {
-    @apply w-full bg-panelAlt border border-white/10 rounded-lg px-3 py-2 focus:ring-2 focus:ring-ember/40 placeholder:text-zinc-400 text-white focus:outline-none transition-all;
-  }
-
-  .badge {
-    @apply text-xs px-2 py-0.5 rounded bg-white/10 border border-white/10 text-zincsoft;
-  }
-
-  .matrix-bg {
-    background-image: radial-gradient(transparent 60%, rgba(10, 255, 157, 0.06)),
-      linear-gradient(180deg, rgba(10, 255, 157, 0.05), rgba(10, 255, 157, 0.02));
-  }
-}
-
-/* Custom scrollbar */
+/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
-  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -102,32 +131,16 @@
   background: rgba(138, 148, 166, 0.5);
 }
 
-/* Selection */
-::selection {
-  background: rgba(10, 255, 157, 0.2);
-  color: var(--matrix);
-}
-
-/* Focus states */
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid var(--matrix);
-  outline-offset: 2px;
-}
-
-/* Animations */
-@keyframes matrix-glow {
-  0%,
+/* Animation for scrolling text */
+@keyframes scroll {
+  0% {
+    transform: translateX(100%);
+  }
   100% {
-    box-shadow: 0 0 5px rgba(10, 255, 157, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 20px rgba(10, 255, 157, 0.6);
+    transform: translateX(-100%);
   }
 }
 
-.animate-matrix-glow {
-  animation: matrix-glow 2s ease-in-out infinite;
+.animate-scroll {
+  animation: scroll 30s linear infinite;
 }

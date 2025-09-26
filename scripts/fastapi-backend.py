@@ -2,20 +2,27 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
-import os
+import random
+import string
 from datetime import datetime
-import json
+import os
 
-app = FastAPI(title="RankForge Engine API", version="0.3")
+app = FastAPI(title="RankForge API", version="0.3.0")
 
-# CORS middleware for frontend connection
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["http://localhost:3000", "https://*.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# In-memory storage (replace with real database)
+projects_db = []
+plans_db = []
+next_project_id = 1
+next_plan_id = 1
 
 # Pydantic models
 class ProjectCreate(BaseModel):
@@ -29,21 +36,21 @@ class Project(BaseModel):
     created_at: str
 
 class KeywordIntakeOptions(BaseModel):
-    num_competitors: int = 10
-    avg_link_strength: float = 0.25
-    kd_bucket: int = 40
-    posts_per_week: int = 3
-    links_per_month: int = 6
+    num_competitors: Optional[int] = 10
+    avg_link_strength: Optional[float] = 0.25
+    kd_bucket: Optional[int] = 40
+    posts_per_week: Optional[int] = 3
+    links_per_month: Optional[int] = 6
 
 class KeywordIntakeRequest(BaseModel):
     project_id: int
     domain: str
     keywords: List[str]
-    options: KeywordIntakeOptions
+    options: Optional[KeywordIntakeOptions] = None
 
 class Cluster(BaseModel):
     cluster: str
-    intent: str  # "informational", "commercial", "transactional"
+    intent: str
     keywords: List[str]
     primary_keyword: str
 
@@ -62,88 +69,114 @@ class PlanCreate(BaseModel):
 class Plan(BaseModel):
     id: int
     project_id: int
+    keyword: str
+    domain: str
     da_target: int
-    links: int
-    articles: int
+    links_needed: int
+    articles_needed: int
     eta_weeks: float
     created_at: str
 
-# In-memory storage (replace with actual database)
-projects_db: List[Project] = []
-plans_db: List[Plan] = []
-project_counter = 1
-plan_counter = 1
+# Helper functions
+def generate_clusters(keywords: List[str]) -> List[Cluster]:
+    """Generate mock clusters from keywords"""
+    clusters = []
+    
+    # Group keywords into semantic clusters (mock logic)
+    cluster_groups = {}
+    for keyword in keywords:
+        # Simple clustering based on first word
+        first_word = keyword.split()[0].lower()
+        if first_word not in cluster_groups:
+            cluster_groups[first_word] = []
+        cluster_groups[first_word].append(keyword)
+    
+    # Create cluster objects
+    intents = ['informational', 'commercial', 'transactional']
+    for cluster_name, cluster_keywords in cluster_groups.items():
+        if len(cluster_keywords) >= 2:  # Only create clusters with multiple keywords
+            clusters.append(Cluster(
+                cluster=cluster_name.replace('-', ' ').title(),
+                intent=random.choice(intents),
+                keywords=cluster_keywords,
+                primary_keyword=cluster_keywords[0]
+            ))
+    
+    return clusters
 
-# Health check endpoint
+def generate_plan(keyword: str, domain: str) -> Dict[str, Any]:
+    """Generate mock SEO plan"""
+    return {
+        'da_target': random.randint(20, 80),
+        'links_needed': random.randint(5, 25),
+        'articles_needed': random.randint(3, 12),
+        'eta_weeks': round(random.uniform(4.0, 16.0), 1)
+    }
+
+# Routes
 @app.get("/healthz")
 async def health_check():
     return {
-        "status": "ok",
+        "status": "healthy",
         "env": os.getenv("ENV", "development"),
-        "version": "0.3"
+        "version": "0.3.0"
     }
 
-# Projects endpoints
 @app.post("/projects", response_model=Project)
 async def create_project(project: ProjectCreate):
-    global project_counter
+    global next_project_id
+    
     new_project = Project(
-        id=project_counter,
+        id=next_project_id,
         domain=project.domain,
         industry=project.industry,
         created_at=datetime.now().isoformat()
     )
-    projects_db.append(new_project)
-    project_counter += 1
+    
+    projects_db.append(new_project.dict())
+    next_project_id += 1
+    
     return new_project
 
 @app.get("/projects", response_model=List[Project])
 async def get_projects():
-    return projects_db
+    return [Project(**project) for project in projects_db]
 
-# Keywords intake endpoint
 @app.post("/keywords/intake", response_model=KeywordIntakeResponse)
-async def keyword_intake(request: KeywordIntakeRequest):
-    # Mock clustering logic - replace with actual clustering algorithm
-    import random
+async def process_keywords(request: KeywordIntakeRequest):
+    global next_plan_id
     
-    # Group keywords into clusters (simplified)
-    clusters = []
-    cluster_names = ["running-shoes", "marathon-training", "fitness-gear", "workout-plans"]
+    # Validate project exists
+    project_exists = any(p['id'] == request.project_id for p in projects_db)
+    if not project_exists:
+        raise HTTPException(status_code=404, detail="Project not found")
     
-    # Split keywords into groups
-    keywords_per_cluster = len(request.keywords) // min(4, len(request.keywords))
-    if keywords_per_cluster == 0:
-        keywords_per_cluster = 1
+    # Generate clusters
+    clusters = generate_clusters(request.keywords)
     
-    for i in range(0, len(request.keywords), keywords_per_cluster):
-        chunk = request.keywords[i:i + keywords_per_cluster]
-        if not chunk:
-            continue
-            
-        cluster_name = cluster_names[len(clusters) % len(cluster_names)]
-        intent = random.choice(["informational", "commercial", "transactional"])
-        
-        cluster = Cluster(
-            cluster=cluster_name,
-            intent=intent,
-            keywords=chunk,
-            primary_keyword=chunk[0]
-        )
-        clusters.append(cluster)
-    
-    # Auto-create plans for each cluster
+    # Create plans for each cluster
     plans_created = 0
     details = {}
     
     for cluster in clusters:
-        plan = await create_auto_plan_internal(
-            request.project_id, 
-            cluster.primary_keyword, 
-            request.domain
+        plan_data = generate_plan(cluster.primary_keyword, request.domain)
+        
+        new_plan = Plan(
+            id=next_plan_id,
+            project_id=request.project_id,
+            keyword=cluster.primary_keyword,
+            domain=request.domain,
+            da_target=plan_data['da_target'],
+            links_needed=plan_data['links_needed'],
+            articles_needed=plan_data['articles_needed'],
+            eta_weeks=plan_data['eta_weeks'],
+            created_at=datetime.now().isoformat()
         )
+        
+        plans_db.append(new_plan.dict())
+        details[cluster.cluster] = next_plan_id
+        next_plan_id += 1
         plans_created += 1
-        details[cluster.cluster] = plan.id
     
     return KeywordIntakeResponse(
         project_id=request.project_id,
@@ -153,39 +186,42 @@ async def keyword_intake(request: KeywordIntakeRequest):
         details=details
     )
 
-# Plans endpoints
-async def create_auto_plan_internal(project_id: int, keyword: str, domain: str) -> Plan:
-    global plan_counter
-    import random
+@app.post("/plans/auto", response_model=Plan)
+async def create_plan(request: PlanCreate):
+    global next_plan_id
     
-    # Mock plan generation - replace with actual algorithm
-    plan = Plan(
-        id=plan_counter,
-        project_id=project_id,
-        da_target=random.randint(30, 80),
-        links=random.randint(10, 50),
-        articles=random.randint(5, 20),
-        eta_weeks=round(random.uniform(4.0, 12.0), 1),
+    # Validate project exists
+    project_exists = any(p['id'] == request.project_id for p in projects_db)
+    if not project_exists:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    plan_data = generate_plan(request.keyword, request.domain)
+    
+    new_plan = Plan(
+        id=next_plan_id,
+        project_id=request.project_id,
+        keyword=request.keyword,
+        domain=request.domain,
+        da_target=plan_data['da_target'],
+        links_needed=plan_data['links_needed'],
+        articles_needed=plan_data['articles_needed'],
+        eta_weeks=plan_data['eta_weeks'],
         created_at=datetime.now().isoformat()
     )
     
-    plans_db.append(plan)
-    plan_counter += 1
-    return plan
-
-@app.post("/plans/auto", response_model=Plan)
-async def create_auto_plan(request: PlanCreate):
-    return await create_auto_plan_internal(
-        request.project_id, 
-        request.keyword, 
-        request.domain
-    )
+    plans_db.append(new_plan.dict())
+    next_plan_id += 1
+    
+    return new_plan
 
 @app.get("/plans", response_model=List[Plan])
 async def get_plans(project_id: Optional[int] = None):
-    if project_id:
-        return [plan for plan in plans_db if plan.project_id == project_id]
-    return plans_db
+    filtered_plans = plans_db
+    
+    if project_id is not None:
+        filtered_plans = [p for p in plans_db if p['project_id'] == project_id]
+    
+    return [Plan(**plan) for plan in filtered_plans]
 
 if __name__ == "__main__":
     import uvicorn

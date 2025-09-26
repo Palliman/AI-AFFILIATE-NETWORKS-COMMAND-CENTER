@@ -1,14 +1,15 @@
 import type React from "react"
-import "./globals.css"
+import type { Metadata } from "next"
 import { Inter } from "next/font/google"
-import { Toaster } from "sonner"
+import "./globals.css"
+import { AuthProvider } from "@/components/auth-provider"
 import ClientLayout from "./client-layout"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata = {
-  title: "AI Affiliate Networks — RankForge Engine v0.3",
-  description: "Professional SEO operator dashboard",
+export const metadata: Metadata = {
+  title: "AI Affiliate Networks - RankForge Engine v0.3",
+  description: "Professional SEO command center with Matrix operator aesthetic",
     generator: 'v0.app'
 }
 
@@ -18,20 +19,11 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.className} bg-gunmetal text-white min-h-screen`}>
-        <ClientLayout>{children}</ClientLayout>
-
-        <Toaster
-          theme="dark"
-          toastOptions={{
-            style: {
-              background: "#151821",
-              border: "1px solid rgba(255,255,255,0.1)",
-              color: "#fff",
-            },
-          }}
-        />
+    <html lang="en">
+      <body className={inter.className}>
+        <AuthProvider>
+          <ClientLayout>{children}</ClientLayout>
+        </AuthProvider>
       </body>
     </html>
   )

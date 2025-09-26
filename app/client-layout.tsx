@@ -5,6 +5,7 @@ import { Inter } from "next/font/google"
 import StatusBar from "@/components/status-bar"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useAuth } from "@/components/auth-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -40,6 +41,8 @@ export default function ClientLayout({
 }: {
   children: React.ReactNode
 }) {
+  const { isAuthenticated } = useAuth()
+
   return (
     <div className="matrix-bg min-h-screen">
       {/* Header */}
@@ -55,7 +58,7 @@ export default function ClientLayout({
       </header>
 
       {/* Status Bar */}
-      <StatusBar />
+      {isAuthenticated && <StatusBar />}
 
       {/* Main Content */}
       <main className="p-6">{children}</main>
